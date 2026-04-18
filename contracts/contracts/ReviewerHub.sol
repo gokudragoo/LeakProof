@@ -22,7 +22,7 @@ contract ReviewerHub {
         uint256 caseId;
         bool hasVoted;
         euint8 encryptedRecommendation;
-        euint8 encryptedSeverityScore;
+        uint8 severityScore;
         string encryptedNotes;
         uint64 assignedAt;
         uint64 votedAt;
@@ -32,7 +32,7 @@ contract ReviewerHub {
         euint32 approvals;
         euint32 rejects;
         euint32 escalations;
-        euint32 severityTotal;
+        uint32 severityTotal;
         bool published;
     }
 
@@ -101,14 +101,13 @@ contract ReviewerHub {
             caseId: caseId,
             hasVoted: false,
             encryptedRecommendation: FHE.asEuint8(0),
-            encryptedSeverityScore: FHE.asEuint8(0),
+            severityScore: 0,
             encryptedNotes: "",
             assignedAt: uint64(block.timestamp),
             votedAt: 0
         });
 
         FHE.allowThis(assignments[caseId][reviewer].encryptedRecommendation);
-        FHE.allowThis(assignments[caseId][reviewer].encryptedSeverityScore);
 
         assignedReviewers[caseId].push(reviewer);
         reviewerCases[reviewer].push(caseId);
@@ -126,7 +125,7 @@ contract ReviewerHub {
     function submitVote(
         uint256 caseId,
         InEuint8 calldata recommendationInput,
-        InEuint8 calldata severityScoreInput,
+        uint8 severityScore,
         string calldata encryptedNotes
     ) external {
         ReviewerAssignment storage assignment = assignments[caseId][msg.sender];
@@ -137,18 +136,15 @@ contract ReviewerHub {
         _ensureConsensusInitialized(caseId);
 
         euint8 recommendation = _normalizeRecommendation(FHE.asEuint8(recommendationInput));
-        euint8 severityScore = _clampSeverity(FHE.asEuint8(severityScoreInput));
 
         assignment.hasVoted = true;
         assignment.encryptedRecommendation = recommendation;
-        assignment.encryptedSeverityScore = severityScore;
+        assignment.severityScore = _clampSeverity(severityScore);
         assignment.encryptedNotes = encryptedNotes;
         assignment.votedAt = uint64(block.timestamp);
 
         FHE.allowThis(assignment.encryptedRecommendation);
-        FHE.allowThis(assignment.encryptedSeverityScore);
         FHE.allow(assignment.encryptedRecommendation, msg.sender);
-        FHE.allow(assignment.encryptedSeverityScore, msg.sender);
 
         _recomputeConsensus(caseId, msg.sender);
 
@@ -173,11 +169,10 @@ contract ReviewerHub {
         uint32 approvals,
         uint32 rejects,
         uint32 escalations,
-        uint32 severityTotal,
         bytes[] calldata signatures
     ) external onlyAdmin {
         require(core.caseExists(caseId), "Invalid case ID");
-        require(signatures.length == 4, "Expected 4 signatures");
+        require(signatures.length == 3, "Expected 3 signatures");
 
         CaseConsensus storage consensus = consensuses[caseId];
         require(FHE.isInitialized(consensus.approvals), "Consensus unavailable");
@@ -189,13 +184,9 @@ contract ReviewerHub {
         require(FHE.verifyDecryptResult(consensus.approvals, approvals, signatures[0]), "Invalid approvals proof");
         require(FHE.verifyDecryptResult(consensus.rejects, rejects, signatures[1]), "Invalid rejects proof");
         require(FHE.verifyDecryptResult(consensus.escalations, escalations, signatures[2]), "Invalid escalations proof");
-        require(
-            FHE.verifyDecryptResult(consensus.severityTotal, severityTotal, signatures[3]),
-            "Invalid severity total proof"
-        );
 
         consensus.published = true;
-        uint8 averageSeverityScore = voteCount == 0 ? 0 : uint8(severityTotal / voteCount);
+        uint8 averageSeverityScore = voteCount == 0 ? 0 : uint8(consensus.severityTotal / voteCount);
         core.recordVoteTally(caseId, voteCount, approvals, rejects, escalations, averageSeverityScore);
 
         LeakProofCore.CaseStatus currentStatus = core.getCaseStatus(caseId);
@@ -222,12 +213,11 @@ contract ReviewerHub {
             consensus.approvals = FHE.asEuint32(0);
             consensus.rejects = FHE.asEuint32(0);
             consensus.escalations = FHE.asEuint32(0);
-            consensus.severityTotal = FHE.asEuint32(0);
+            consensus.severityTotal = 0;
 
             FHE.allowThis(consensus.approvals);
             FHE.allowThis(consensus.rejects);
             FHE.allowThis(consensus.escalations);
-            FHE.allowThis(consensus.severityTotal);
         }
     }
 
@@ -240,7 +230,6 @@ contract ReviewerHub {
         FHE.allow(consensus.approvals, viewer);
         FHE.allow(consensus.rejects, viewer);
         FHE.allow(consensus.escalations, viewer);
-        FHE.allow(consensus.severityTotal, viewer);
     }
 
     function _normalizeRecommendation(euint8 value) internal returns (euint8) {
@@ -249,10 +238,16 @@ contract ReviewerHub {
         return FHE.select(isApprove, APPROVE_CODE, FHE.select(isReject, REJECT_CODE, ESCALATE_CODE));
     }
 
-    function _clampSeverity(euint8 value) internal returns (euint8) {
-        ebool belowRange = FHE.lt(value, ONE8);
-        ebool aboveRange = FHE.gt(value, FIVE8);
-        return FHE.select(belowRange, ONE8, FHE.select(aboveRange, FIVE8, value));
+    function _clampSeverity(uint8 value) internal pure returns (uint8) {
+        if (value < 1) {
+            return 1;
+        }
+
+        if (value > 5) {
+            return 5;
+        }
+
+        return value;
     }
 
     function _recomputeConsensus(uint256 caseId, address latestReviewer) internal {
@@ -266,12 +261,11 @@ contract ReviewerHub {
         consensus.approvals = FHE.add(consensus.approvals, approveIncrement);
         consensus.rejects = FHE.add(consensus.rejects, rejectIncrement);
         consensus.escalations = FHE.add(consensus.escalations, escalationIncrement);
-        consensus.severityTotal = FHE.add(consensus.severityTotal, FHE.asEuint32(assignment.encryptedSeverityScore));
+        consensus.severityTotal += assignment.severityScore;
 
         FHE.allowThis(consensus.approvals);
         FHE.allowThis(consensus.rejects);
         FHE.allowThis(consensus.escalations);
-        FHE.allowThis(consensus.severityTotal);
 
         uint32 voteCount = uint32(getVoteCount(caseId));
 
@@ -357,15 +351,23 @@ contract ReviewerHub {
     function getEncryptedVoteSummary(uint256 caseId)
         external
         view
-        returns (euint32 approvals, euint32 rejects, euint32 escalations, euint32 severityTotal)
+        returns (euint32 approvals, euint32 rejects, euint32 escalations)
     {
         CaseConsensus storage consensus = consensuses[caseId];
         return (
             consensus.approvals,
             consensus.rejects,
-            consensus.escalations,
-            consensus.severityTotal
+            consensus.escalations
         );
+    }
+
+    function getCurrentAverageSeverity(uint256 caseId) external view returns (uint8) {
+        uint256 voteCount = getVoteCount(caseId);
+        if (voteCount == 0) {
+            return 0;
+        }
+
+        return uint8(consensuses[caseId].severityTotal / voteCount);
     }
 
     function getAssignedCases(address reviewer) external view returns (uint256[] memory) {
