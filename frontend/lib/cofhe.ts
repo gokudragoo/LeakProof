@@ -3,11 +3,18 @@ export { sepolia } from '@cofhe/sdk/chains';
 export { Encryptable, FheTypes } from '@cofhe/sdk';
 
 export function hexToBytes(hex: string): Uint8Array {
-  return new Uint8Array(Buffer.from(hex.replace('0x', ''), 'hex'));
+  const normalized = hex.replace('0x', '');
+  const bytes = new Uint8Array(normalized.length / 2);
+
+  for (let index = 0; index < normalized.length; index += 2) {
+    bytes[index / 2] = Number.parseInt(normalized.slice(index, index + 2), 16);
+  }
+
+  return bytes;
 }
 
 export function bytesToHex(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString('hex');
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export function formatAddress(addr: string, start = 6, end = 4): string {
