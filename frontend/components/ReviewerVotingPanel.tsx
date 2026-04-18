@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useCofheClient } from '@/hooks/useCofheClient';
 import { useSubmitVote } from '@/hooks/useReviewerHub';
 
 interface ReviewerVotingPanelProps {
@@ -10,6 +11,7 @@ interface ReviewerVotingPanelProps {
 
 export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerVotingPanelProps) {
   const { submitVote, isPending } = useSubmitVote();
+  const { encryptUint8, isReady: cofheReady } = useCofheClient();
   const [recommendation, setRecommendation] = useState(1);
   const [severityScore, setSeverityScore] = useState(3);
   const [notes, setNotes] = useState('');
@@ -19,10 +21,13 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
     event.preventDefault();
 
     try {
+      const encryptedRecommendation = await encryptUint8(recommendation);
+      const encryptedSeverityScore = await encryptUint8(severityScore);
+
       await submitVote({
         caseId,
-        recommendation,
-        severityScore,
+        recommendation: encryptedRecommendation,
+        severityScore: encryptedSeverityScore,
         notes: `${walletAddress}: ${notes}`.trim(),
       });
       setMessage('Vote submitted.');
@@ -74,10 +79,10 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || !cofheReady}
         className="w-full py-4 rounded-lg bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 text-white font-semibold"
       >
-        {isPending ? 'Waiting for wallet...' : 'Submit vote'}
+        {isPending ? 'Waiting for wallet...' : !cofheReady ? 'Connecting confidential client...' : 'Submit vote'}
       </button>
 
       {message ? (
