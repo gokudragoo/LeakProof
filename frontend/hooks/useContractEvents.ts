@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { usePublicClient } from 'wagmi';
 import { CONTRACTS, CORE_ABI, REVIEWER_HUB_ABI } from '@/lib/contracts';
 
@@ -50,15 +50,12 @@ export function useContractEvents() {
       abi: CORE_ABI as any,
       eventName: 'CaseCreated',
       onLogs: (logs) => {
-        const events = logs.map((log) => {
-          const args = log.args as any;
-          return {
-            caseId: args?.caseId ?? 0n,
-            reporter: args?.reporter ?? '0x',
-            status: args?.status ?? 0,
-            timestamp: args?.timestamp ?? 0n,
-          };
-        });
+        const events: CaseCreatedEvent[] = logs.map((log: any) => ({
+          caseId: log.args?.caseId ?? 0n,
+          reporter: log.args?.reporter ?? '0x',
+          status: log.args?.status ?? 0,
+          timestamp: log.args?.timestamp ?? 0n,
+        }));
         setCaseCreatedEvents((prev) => [...events, ...prev]);
       },
     });
@@ -68,15 +65,12 @@ export function useContractEvents() {
       abi: CORE_ABI as any,
       eventName: 'StatusUpdated',
       onLogs: (logs) => {
-        const events = logs.map((log) => {
-          const args = log.args as any;
-          return {
-            caseId: args?.caseId ?? 0n,
-            oldStatus: args?.oldStatus ?? 0,
-            newStatus: args?.newStatus ?? 0,
-            updater: args?.updater ?? '0x',
-          };
-        });
+        const events: StatusUpdatedEvent[] = logs.map((log: any) => ({
+          caseId: log.args?.caseId ?? 0n,
+          oldStatus: log.args?.oldStatus ?? 0,
+          newStatus: log.args?.newStatus ?? 0,
+          updater: log.args?.updater ?? '0x',
+        }));
         setStatusUpdatedEvents((prev) => [...events, ...prev]);
       },
     });
@@ -86,14 +80,11 @@ export function useContractEvents() {
       abi: REVIEWER_HUB_ABI as any,
       eventName: 'ReviewerAssigned',
       onLogs: (logs) => {
-        const events = logs.map((log) => {
-          const args = log.args as any;
-          return {
-            caseId: args?.caseId ?? 0n,
-            reviewer: args?.reviewer ?? '0x',
-            assigner: args?.assigner ?? '0x',
-          };
-        });
+        const events: ReviewerAssignedEvent[] = logs.map((log: any) => ({
+          caseId: log.args?.caseId ?? 0n,
+          reviewer: log.args?.reviewer ?? '0x',
+          assigner: log.args?.assigner ?? '0x',
+        }));
         setReviewerAssignedEvents((prev) => [...events, ...prev]);
       },
     });
@@ -103,13 +94,10 @@ export function useContractEvents() {
       abi: REVIEWER_HUB_ABI as any,
       eventName: 'VoteSubmitted',
       onLogs: (logs) => {
-        const events = logs.map((log) => {
-          const args = log.args as any;
-          return {
-            caseId: args?.caseId ?? 0n,
-            reviewer: args?.reviewer ?? '0x',
-          };
-        });
+        const events: VoteSubmittedEvent[] = logs.map((log: any) => ({
+          caseId: log.args?.caseId ?? 0n,
+          reviewer: log.args?.reviewer ?? '0x',
+        }));
         setVoteSubmittedEvents((prev) => [...events, ...prev]);
       },
     });
@@ -119,13 +107,10 @@ export function useContractEvents() {
       abi: REVIEWER_HUB_ABI as any,
       eventName: 'ConsensusReached',
       onLogs: (logs) => {
-        const events = logs.map((log) => {
-          const args = log.args as any;
-          return {
-            caseId: args?.caseId ?? 0n,
-            approvals: args?.approvals ?? 0n,
-          };
-        });
+        const events: ConsensusReachedEvent[] = logs.map((log: any) => ({
+          caseId: log.args?.caseId ?? 0n,
+          approvals: log.args?.approvals ?? 0n,
+        }));
         setConsensusReachedEvents((prev) => [...events, ...prev]);
       },
     });
