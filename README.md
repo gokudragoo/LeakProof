@@ -1,4 +1,4 @@
-# 🔒 LeakProof X
+# LeakProof X
 
 **Privacy-First Whistleblowing Platform on Ethereum**
 
