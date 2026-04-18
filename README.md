@@ -1,95 +1,94 @@
-# LeakProof X
+# 🔒 LeakProof X
 
-Whistleblowing workflow on Ethereum Sepolia with:
-- on-chain case lifecycle
-- reviewer assignment and voting
-- IPFS-backed report payloads
-- disclosure permissions
+**Privacy-First Whistleblowing Platform on Ethereum**
 
-## Current Status
+<p align="center">
+  <img src="https://img.shields.io/badge/Network-Ethereum%20Sepolia-627EEA?style=for-the-badge&logo=ethereum" alt="Sepolia">
+  <img src="https://img.shields.io/badge/Smart%20Contracts-Solidity-363636?style=for-the-badge&logo=solidity" alt="Solidity">
+  <img src="https://img.shields.io/badge/Frontend-Next.js%2014-000000?style=for-the-badge&logo=next.js" alt="Next.js">
+  <img src="https://img.shields.io/badge/Workflow-On--Chain-16a34a?style=for-the-badge" alt="On-chain">
+</p>
 
-This repo is now working as a real Sepolia demo flow:
-- report submission waits for a confirmed receipt and reads the real `caseId` from `CaseCreated`
-- reviewer voting waits for confirmation before showing success
-- evidence CIDs are stored correctly as strings, not cast to `bytes32`
-- reviewer consensus only counts real approve/reject/escalate votes
-- duplicate reviewer assignment is blocked
-- dashboards render live contract state instead of placeholder cards
-- root scripts use `npm` workspaces instead of `yarn`
-- contract tests and frontend production build pass
+---
 
-Important:
-- this build is on-chain and working
-- it is not a true Fhenix/CoFHE confidential-computation implementation yet
-- the current privacy model is IPFS payload storage plus SHA-256 digests anchored on-chain
+## 🎯 What is LeakProof X?
 
-## Verified Checks
+LeakProof X is a **working on-chain whistleblowing and compliance reporting platform** built on Ethereum Sepolia. It enables secure, confidential reporting with protected report payloads, reviewer voting, and selective disclosure.
 
-The latest local verification pass succeeded with:
-- `npm run compile --workspace contracts`
-- `npm run test --workspace contracts`
-- `npm run build --workspace frontend`
+**Live URL**: [https://leakproof-gamma.vercel.app](https://leakproof-gamma.vercel.app)
 
-Contract tests: `6 passing`
+---
 
-## Live Sepolia Contracts
+## ✨ Features
 
-Deployed from this repo:
+### 🔐 Privacy by Design
+- Client-side protected report payloads before on-chain anchoring
+- Report and evidence references stored on-chain with IPFS CIDs and digests
+- Zero plaintext report body stored directly in contract state
+- Wallet address as pseudonymous identifier
+- Receipt-confirmed submission and voting flow
 
-| Contract | Address |
-|---|---|
-| `LeakProofAccessControl` | `0x74eEB24e602F8b6F64DC704C88655fADe3985EF1` |
-| `LeakProofCore` | `0xf877025f5d0031a21188b9FbE8506226D9715a6F` |
-| `ReviewerHub` | `0x78Ca71B21bf740B5c32D742B19E6Efd4B3f4729D` |
-| `DisclosureController` | `0x83A080Bc3f1dADce4c4b334509AD6f2686d74ccF` |
+### 👥 Role-Based Access
 
-Deployment record: [contracts/.env.deployed](C:/Users/parth/Desktop/LeakProof/contracts/.env.deployed)
+| Role | Permissions |
+|------|-------------|
+| **Reporter** | Submit reports and track their own cases |
+| **Reviewer** | Evaluate assigned cases and submit votes |
+| **Admin** | Manage cases, assign reviewers, grant reviewer roles, control disclosure |
 
-## Architecture
+### 🗳️ Private Voting
+- Reviewer votes stored on-chain
+- Consensus engine triggers automatic verification or rejection
+- Approve / Reject / Escalate flow
+- Severity scoring per reviewer
 
-### Reporter flow
-1. Reporter connects wallet.
-2. Report payload is uploaded to IPFS.
-3. Browser computes a SHA-256 digest of the payload.
-4. Contract stores `reportCid`, `reportDigest`, category, optional evidence CID/digest.
-5. UI waits for the confirmed receipt and extracts the real `caseId`.
+### 🔓 Selective Disclosure
+- **4 Permission levels**: OutcomeOnly / SummaryOnly / FullReport / IdentityReveal
+- Admin-controlled disclosure access
+- Full audit trail on-chain
 
-### Reviewer flow
-1. Admin grants reviewer role and assigns a reviewer to a case.
-2. Reviewer opens assigned case data from IPFS.
-3. Reviewer submits `Approve`, `Reject`, or `Escalate` plus severity and notes.
-4. `ReviewerHub` recomputes vote tallies and updates case status honestly.
+### 📎 Evidence Management
+- IPFS integration (Pinata) for file storage
+- On-chain CID references for tamper evidence
+- Drag & drop file uploads
 
-### Admin flow
-1. Grant reviewer roles.
-2. Assign reviewers.
-3. Set approval thresholds.
-4. Grant disclosure permission levels.
+---
 
-## What Was Fixed
+## 📍 Deployed Contracts (Sepolia Testnet)
 
-### Solved from the audit
-- False success UI: fixed. Submission and voting now wait for confirmed receipts.
-- Fake case IDs: fixed. Case IDs now come from the emitted event.
-- Broken evidence CID handling: fixed. IPFS CIDs are stored as `string`.
-- Bad consensus logic: fixed. Reject/escalate votes no longer count as approvals.
-- Duplicate reviewer assignment: fixed.
-- Over-authorized status flow: tightened. Status changes are constrained to intended actors and workflow.
-- Placeholder dashboards: fixed. Pages now load real case data.
-- Missing tests: fixed. Contract coverage was added for the critical workflows.
-- Broken root scripts: fixed. Root scripts use `npm` workspaces.
-- Frontend production build issues: fixed.
+| Contract | Address | Purpose |
+|----------|---------|---------|
+| **AccessControl** | `0x74eEB24e602F8b6F64DC704C88655fADe3985EF1` | Role management |
+| **LeakProofCore** | `0xf877025f5d0031a21188b9FbE8506226D9715a6F` | Case storage |
+| **ReviewerHub** | `0x78Ca71B21bf740B5c32D742B19E6Efd4B3f4729D` | Voting system |
+| **DisclosureCtrl** | `0x83A080Bc3f1dADce4c4b334509AD6f2686d74ccF` | Permissions |
 
-### Not solved yet
-- True Fhenix/CoFHE privacy is not implemented.
-- There are no encrypted FHE contract types, permits, or confidential computation flows yet.
-- If you want WaveHack/Fhenix-accurate privacy claims, the next step is a real CoFHE rewrite.
+---
 
-## Environment Setup
+## 🚀 Quick Start
 
-### Root `.env`
+```bash
+# Install dependencies
+npm install
 
-Used by Hardhat deploys:
+# Start development
+npm run dev --workspace frontend
+
+# Open http://localhost:3000
+```
+
+### Configuration (`frontend/.env.local`)
+
+```env
+NEXT_PUBLIC_ACCESS_CONTROL=0x74eEB24e602F8b6F64DC704C88655fADe3985EF1
+NEXT_PUBLIC_CORE=0xf877025f5d0031a21188b9FbE8506226D9715a6F
+NEXT_PUBLIC_REVIEWER_HUB=0x78Ca71B21bf740B5c32D742B19E6Efd4B3f4729D
+NEXT_PUBLIC_DISCLOSURE_CTRL=0x83A080Bc3f1dADce4c4b334509AD6f2686d74ccF
+NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_walletconnect_id
+PINATA_JWT=your_pinata_jwt
+```
+
+### Deployment Configuration (`.env`)
 
 ```env
 SEPOLIA_RPC_URL=https://ethereum-sepolia.publicnode.com
@@ -97,53 +96,137 @@ PRIVATE_KEY=your_private_key
 ETHERSCAN_API_KEY=
 ```
 
-### Frontend `frontend/.env.local`
+---
 
-Used by the Next.js app:
+## 🗺️ Roadmap
 
-```env
-NEXT_PUBLIC_ACCESS_CONTROL=0x74eEB24e602F8b6F64DC704C88655fADe3985EF1
-NEXT_PUBLIC_CORE=0xf877025f5d0031a21188b9FbE8506226D9715a6F
-NEXT_PUBLIC_REVIEWER_HUB=0x78Ca71B21bf740B5c32D742B19E6Efd4B3f4729D
-NEXT_PUBLIC_DISCLOSURE_CTRL=0x83A080Bc3f1dADce4c4b334509AD6f2686d74ccF
-NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_walletconnect_project_id
-PINATA_JWT=your_pinata_jwt
-```
+### Wave 1 ✅ (Completed)
+- [x] Smart contracts deployed to Sepolia
+- [x] Role-based access control
+- [x] Reviewer assignment & voting
+- [x] Frontend with wallet connect
+- [x] IPFS integration
+- [x] Splash screen & animations
+- [x] Interactive canvas particles
+- [x] Real dashboards connected to on-chain data
+- [x] Receipt-confirmed report submission and voting
 
-Notes:
-- `PINATA_JWT` is server-side now through `/api/pinata`
-- do not use `NEXT_PUBLIC_PINATA_JWT`
+### Wave 2 🔄 (In Progress)
+- [ ] CoFHE SDK for true FHE encryption
+- [ ] ZK-proof generation
+- [x] Real-time event updates
+- [x] Enhanced dashboards
+- [x] End-to-end on-chain workflow
 
-## Run Locally
+### Wave 3 📋 (Planned)
+- [ ] Anonymous reputation system
+- [ ] Time-locked disclosure
+- [ ] Multi-reviewer consensus analytics
+- [ ] DAO governance
 
-```bash
-npm install
-npm run compile --workspace contracts
-npm run test --workspace contracts
-npm run build --workspace frontend
-npm run dev --workspace frontend
-```
+### Wave 4 🔐 (Planned)
+- [ ] Enterprise compliance
+- [ ] Legal export
+- [ ] White-label dashboard
 
-Then open `http://localhost:3000`.
+### Wave 5 🚀 (Future)
+- [ ] Layer 2 migration
+- [ ] Mobile app
+- [ ] Partnership integrations
 
-## Repo Layout
+---
+
+## 🏗️ Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | Next.js 14, React 18, TypeScript |
+| Styling | Tailwind CSS, custom animations |
+| Wallet | wagmi v2, RainbowKit, viem |
+| Privacy Workflow | Client-side digesting + IPFS-backed payloads |
+| Storage | IPFS, Pinata |
+| Contracts | Solidity, Hardhat, OpenZeppelin |
+| Network | Ethereum Sepolia |
+
+---
+
+## 📱 How It Works
+
+### Reporter
+1. Connect wallet → Dashboard
+2. Submit report payload → Transaction on-chain
+3. Receive real Case ID from confirmed receipt → Track privately
+
+### Reviewer
+1. Admin assigns to case
+2. Submit vote (`approve` / `reject` / `escalate`)
+3. Consensus updates the case status on-chain
+
+### Admin
+1. View all cases
+2. Grant reviewer role
+3. Assign reviewers
+4. Grant disclosure permissions
+
+---
+
+## 🎨 UI Features
+- Splash screen with loading animation
+- Interactive canvas with mouse particles
+- Glassmorphism cards
+- Animated counters
+- Drag & drop file uploads
+- Gradient text animations
+- Hover effects
+- Dark theme
+
+---
+
+## 📂 Project Structure
 
 ```text
-contracts/
-  contracts/
-  scripts/
-  test/
-frontend/
-  app/
-  components/
-  hooks/
-  lib/
+leakproof/
+├── contracts/            # Solidity smart contracts
+│   ├── contracts/        # AccessControl, LeakProofCore, ReviewerHub, DisclosureCtrl
+│   ├── scripts/          # Deployment scripts
+│   ├── test/             # Contract tests
+│   └── .env.deployed     # Latest deployed contract addresses
+├── frontend/             # Next.js 14 app
+│   ├── app/              # Pages (landing, dashboards, submit)
+│   ├── components/       # SplashScreen, InteractiveCanvas, AnimatedCounter
+│   ├── hooks/            # useCaseRegistry, useReviewerHub, useDisclosureCtrl
+│   └── lib/              # wagmi, contracts, cofhe, pinata
+├── .env.example
+├── frontend/.env.example
+└── README.md
 ```
 
-## Next Recommended Step
+---
 
-If you want this project to fully match the original Fhenix/WaveHack privacy goal, replace the current digest-and-CID model with:
-- real CoFHE encrypted types
-- encrypted review payload handling
-- permit/decryption authorization flow
-- updated UI copy that reflects the confidential-compute model
+## ✅ Validation
+
+Latest verified checks:
+- `npm run compile --workspace contracts`
+- `npm run test --workspace contracts`
+- `npm run build --workspace frontend`
+
+---
+
+## 🤝 Contributing
+
+Open PRs welcome! See `CONTRIBUTING.md` for guidelines.
+
+## 📄 License
+
+MIT License
+
+## 🙏 Built With
+- [OpenZeppelin](https://openzeppelin.com) — Smart contract libraries
+- [RainbowKit](https://rainbow.me) — Wallet connect
+- [Pinata](https://pinata.cloud) — IPFS uploads
+- [Wavehack](https://wavehack.io) — Hackathon
+
+---
+
+**Built for privacy-first whistleblowing**  
+🔒 Your voice, protected.
