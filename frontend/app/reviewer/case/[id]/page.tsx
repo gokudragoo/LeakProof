@@ -160,7 +160,9 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
                   <div>Created: {formatTimestamp(caseData.createdAt)}</div>
                   <div>Updated: {formatTimestamp(caseData.updatedAt)}</div>
                   <div>Reporter: {caseData.reporter}</div>
-                  <div>Severity: {payload?.severity ?? caseData.averageSeverityScore || 'Pending'}</div>
+                  <div>
+                    Severity: {payload?.severity ?? (caseData.averageSeverityScore || 'Pending')}
+                  </div>
                 </div>
 
                 {caseData.evidenceCid ? (

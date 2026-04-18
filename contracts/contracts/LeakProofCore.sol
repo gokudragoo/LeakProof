@@ -186,7 +186,11 @@ contract LeakProofCore {
         bool canCloseAsReporter =
             msg.sender == caseItem.reporter &&
             newStatus == CaseStatus.Closed &&
-            (caseItem.status == CaseStatus.Verified || caseItem.status == CaseStatus.Rejected);
+            (
+                caseItem.status == CaseStatus.Verified ||
+                caseItem.status == CaseStatus.Rejected ||
+                caseItem.status == CaseStatus.Escalated
+            );
 
         require(
             accessControl.isAdmin(msg.sender) || msg.sender == reviewerHub || canCloseAsReporter,

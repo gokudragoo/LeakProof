@@ -116,6 +116,7 @@ contract ReviewerHub {
         uint32 escalations = 0;
         uint32 votes = 0;
         uint32 severityTotal = 0;
+        LeakProofCore.CaseStatus currentStatus = core.getCaseStatus(caseId);
 
         for (uint256 i = 0; i < reviewers.length; i++) {
             ReviewerAssignment storage assignment = assignments[caseId][reviewers[i]];
@@ -139,15 +140,23 @@ contract ReviewerHub {
         core.recordVoteTally(caseId, votes, approvals, rejects, escalations, averageSeverity);
 
         if (escalations > 0) {
-            core.updateStatus(caseId, LeakProofCore.CaseStatus.Escalated);
+            if (currentStatus != LeakProofCore.CaseStatus.Escalated) {
+                core.updateStatus(caseId, LeakProofCore.CaseStatus.Escalated);
+            }
         } else if (approvals >= approvalThreshold[caseId]) {
-            core.updateStatus(caseId, LeakProofCore.CaseStatus.Verified);
+            if (currentStatus != LeakProofCore.CaseStatus.Verified) {
+                core.updateStatus(caseId, LeakProofCore.CaseStatus.Verified);
+            }
             emit ConsensusReached(caseId, approvals, rejects, escalations);
         } else if (rejects >= approvalThreshold[caseId]) {
-            core.updateStatus(caseId, LeakProofCore.CaseStatus.Rejected);
+            if (currentStatus != LeakProofCore.CaseStatus.Rejected) {
+                core.updateStatus(caseId, LeakProofCore.CaseStatus.Rejected);
+            }
             emit ConsensusReached(caseId, approvals, rejects, escalations);
         } else if (votes > 0) {
-            core.updateStatus(caseId, LeakProofCore.CaseStatus.UnderReview);
+            if (currentStatus != LeakProofCore.CaseStatus.UnderReview) {
+                core.updateStatus(caseId, LeakProofCore.CaseStatus.UnderReview);
+            }
         }
     }
 
