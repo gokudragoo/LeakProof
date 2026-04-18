@@ -49,7 +49,7 @@ export function useCofheClient() {
       }
 
       const adapted = await WagmiAdapter(walletClient, publicClient);
-      await cofheClient.connect(adapted.publicClient, adapted.walletClient);
+      await cofheClient.connect(adapted.publicClient as never, adapted.walletClient as never);
 
       if (active) {
         setIsReady(true);
