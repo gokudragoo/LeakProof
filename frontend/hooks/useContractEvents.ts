@@ -68,12 +68,15 @@ export function useContractEvents() {
       abi: CORE_ABI as any,
       eventName: 'StatusUpdated',
       onLogs: (logs) => {
-        const events = logs.map((log) => ({
-          caseId: log.args.caseId ?? 0n,
-          oldStatus: log.args.oldStatus ?? 0,
-          newStatus: log.args.newStatus ?? 0,
-          updater: log.args.updater ?? '0x',
-        }));
+        const events = logs.map((log) => {
+          const args = log.args as any;
+          return {
+            caseId: args?.caseId ?? 0n,
+            oldStatus: args?.oldStatus ?? 0,
+            newStatus: args?.newStatus ?? 0,
+            updater: args?.updater ?? '0x',
+          };
+        });
         setStatusUpdatedEvents((prev) => [...events, ...prev]);
       },
     });
@@ -83,11 +86,14 @@ export function useContractEvents() {
       abi: REVIEWER_HUB_ABI as any,
       eventName: 'ReviewerAssigned',
       onLogs: (logs) => {
-        const events = logs.map((log) => ({
-          caseId: log.args.caseId ?? 0n,
-          reviewer: log.args.reviewer ?? '0x',
-          assigner: log.args.assigner ?? '0x',
-        }));
+        const events = logs.map((log) => {
+          const args = log.args as any;
+          return {
+            caseId: args?.caseId ?? 0n,
+            reviewer: args?.reviewer ?? '0x',
+            assigner: args?.assigner ?? '0x',
+          };
+        });
         setReviewerAssignedEvents((prev) => [...events, ...prev]);
       },
     });
@@ -97,10 +103,13 @@ export function useContractEvents() {
       abi: REVIEWER_HUB_ABI as any,
       eventName: 'VoteSubmitted',
       onLogs: (logs) => {
-        const events = logs.map((log) => ({
-          caseId: log.args.caseId ?? 0n,
-          reviewer: log.args.reviewer ?? '0x',
-        }));
+        const events = logs.map((log) => {
+          const args = log.args as any;
+          return {
+            caseId: args?.caseId ?? 0n,
+            reviewer: args?.reviewer ?? '0x',
+          };
+        });
         setVoteSubmittedEvents((prev) => [...events, ...prev]);
       },
     });
@@ -110,10 +119,13 @@ export function useContractEvents() {
       abi: REVIEWER_HUB_ABI as any,
       eventName: 'ConsensusReached',
       onLogs: (logs) => {
-        const events = logs.map((log) => ({
-          caseId: log.args.caseId ?? 0n,
-          approvals: log.args.approvals ?? 0n,
-        }));
+        const events = logs.map((log) => {
+          const args = log.args as any;
+          return {
+            caseId: args?.caseId ?? 0n,
+            approvals: args?.approvals ?? 0n,
+          };
+        });
         setConsensusReachedEvents((prev) => [...events, ...prev]);
       },
     });
