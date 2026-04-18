@@ -1,8 +1,4 @@
-import { deriveKeyFromWallet } from './cofhe';
-
 const PINATA_BASE_URL = 'https://api.pinata.cloud';
-const ALGORITHM = 'AES-GCM';
-const IV_LENGTH = 12;
 
 export async function uploadToIPFS(file: File | Blob, jwt: string): Promise<string> {
   const formData = new FormData();
