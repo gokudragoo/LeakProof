@@ -32,13 +32,14 @@ export function useReviewerHub() {
 export function useReviewerVotes(caseId: number) {
   const { data, isLoading } = useReadContract({
     address: CONTRACTS.REVIEWER_HUB as `0x${string}`,
-    abi: REVIEWER_HUB_ABI,
+    abi: REVIEWER_HUB_ABI as any,
     functionName: 'getReviewerVotes',
     args: [BigInt(caseId)],
+    query: { enabled: caseId > 0 },
   });
 
   return {
-    votes: data,
+    votes: data as any,
     isLoading,
   };
 }
@@ -76,5 +77,35 @@ export function useSubmitVote() {
     isConfirming,
     isSuccess,
     error,
+  };
+}
+
+export function useAssignedCases(reviewer: string | undefined) {
+  const { data, isLoading } = useReadContract({
+    address: CONTRACTS.REVIEWER_HUB as `0x${string}`,
+    abi: REVIEWER_HUB_ABI as any,
+    functionName: 'getAssignedCases',
+    args: reviewer ? [reviewer as `0x${string}`] : undefined,
+    query: { enabled: !!reviewer },
+  });
+
+  return {
+    assignedCases: data ? (data as bigint[]).map(n => Number(n)) : [],
+    isLoading,
+  };
+}
+
+export function useIsReviewerAssigned(caseId: number, reviewer: string | undefined) {
+  const { data, isLoading } = useReadContract({
+    address: CONTRACTS.REVIEWER_HUB as `0x${string}`,
+    abi: REVIEWER_HUB_ABI as any,
+    functionName: 'isReviewerAssigned',
+    args: reviewer ? [BigInt(caseId), reviewer as `0x${string}`] : undefined,
+    query: { enabled: !!reviewer && caseId > 0 },
+  });
+
+  return {
+    isAssigned: data as boolean || false,
+    isLoading,
   };
 }

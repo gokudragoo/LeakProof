@@ -1,38 +1,32 @@
 "use client";
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { CORE_ABI, CONTRACTS } from '@/lib/contracts';
+import { CORE_ABI, REVIEWER_HUB_ABI, CONTRACTS } from '@/lib/contracts';
 
 export function useCaseRegistry() {
   const { data: caseCount, isLoading: countLoading } = useReadContract({
     address: CONTRACTS.CORE as `0x${string}`,
-    abi: CORE_ABI,
+    abi: CORE_ABI as any,
     functionName: 'caseCount',
-  });
-
-  const { data: allCases, isLoading: casesLoading } = useReadContract({
-    address: CONTRACTS.CORE as `0x${string}`,
-    abi: CORE_ABI,
-    functionName: 'getAllCases',
   });
 
   return {
     caseCount: caseCount ? Number(caseCount) : 0,
-    allCases: allCases as bigint[] || [],
-    isLoading: countLoading || casesLoading,
+    isLoading: countLoading,
   };
 }
 
 export function useCase(caseId: number) {
   const { data, isLoading, error } = useReadContract({
     address: CONTRACTS.CORE as `0x${string}`,
-    abi: CORE_ABI,
+    abi: CORE_ABI as any,
     functionName: 'getCase',
     args: [BigInt(caseId)],
+    query: { enabled: caseId > 0 },
   });
 
   return {
-    caseData: data,
+    caseData: data as any,
     isLoading,
     error,
   };
@@ -41,9 +35,10 @@ export function useCase(caseId: number) {
 export function useCaseStatus(caseId: number) {
   const { data, isLoading } = useReadContract({
     address: CONTRACTS.CORE as `0x${string}`,
-    abi: CORE_ABI,
+    abi: CORE_ABI as any,
     functionName: 'getCaseStatus',
     args: [BigInt(caseId)],
+    query: { enabled: caseId > 0 },
   });
 
   return {
@@ -93,13 +88,14 @@ export function useCreateCase() {
 export function useCaseReviewers(caseId: number) {
   const { data, isLoading } = useReadContract({
     address: CONTRACTS.CORE as `0x${string}`,
-    abi: CORE_ABI,
+    abi: CORE_ABI as any,
     functionName: 'getCaseReviewers',
     args: [BigInt(caseId)],
+    query: { enabled: caseId > 0 },
   });
 
   return {
-    reviewers: data as string[] || [],
+    reviewers: (data as string[]) || [],
     isLoading,
   };
 }
