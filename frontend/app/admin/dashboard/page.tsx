@@ -14,8 +14,14 @@ import { fetchJsonFromIPFS } from '@/lib/pinata';
 import { formatTimestamp } from '@/lib/report-utils';
 import { useGrantReviewerRole, useIsAdmin } from '@/hooks/useAccessControl';
 import { useAllCaseIds, useCases } from '@/hooks/useCaseRegistry';
+import { useCofheClient } from '@/hooks/useCofheClient';
 import { useDisclosureCtrl } from '@/hooks/useDisclosureCtrl';
-import { useReviewerHub } from '@/hooks/useReviewerHub';
+import {
+  useAuthorizeVoteSummaryAccess,
+  useEncryptedVoteSummary,
+  usePublishConsensus,
+  useReviewerHub,
+} from '@/hooks/useReviewerHub';
 import type { ReportPayload } from '@/types';
 
 const permissionOptions = [1, 2, 3, 4];
@@ -29,9 +35,13 @@ export default function AdminDashboard() {
   const { data: adminFlag, isLoading: adminLoading } = useIsAdmin(address);
   const { caseIds, isLoading: idsLoading } = useAllCaseIds();
   const { cases, isLoading: casesLoading } = useCases(caseIds);
+  const { handles: encryptedSummaryHandles } = useEncryptedVoteSummary(selectedCaseId);
   const { assignReviewer, setApprovalThreshold, isPending: reviewerHubPending } = useReviewerHub();
+  const { authorize, isPending: authorizePending } = useAuthorizeVoteSummaryAccess();
+  const { publishConsensus, isPending: publishPending } = usePublishConsensus();
   const { grantAccess, isPending: disclosurePending } = useDisclosureCtrl();
   const { grantReviewerRole, isPending: rolePending } = useGrantReviewerRole();
+  const { decryptHandleForTx, isReady: cofheReady } = useCofheClient();
 
   const [reports, setReports] = useState<Record<number, ReportPayload | null>>({});
   const [selectedCaseId, setSelectedCaseId] = useState<number>(0);
@@ -87,6 +97,7 @@ export default function AdminDashboard() {
   }, [cases]);
 
   const sortedCases = [...cases].sort((left, right) => right.updatedAt - left.updatedAt);
+  const selectedCase = sortedCases.find((item) => item.id === selectedCaseId) ?? null;
   const submittedCount = sortedCases.filter((item) => item.status === 0).length;
   const verifiedCount = sortedCases.filter((item) => item.status === 4).length;
   const closedCount = sortedCases.filter((item) => item.status === 5).length;
@@ -175,6 +186,58 @@ export default function AdminDashboard() {
       setDisclosureAddress('');
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : 'Unable to grant disclosure access.');
+    }
+  };
+
+  const handlePublishConfidentialTally = async () => {
+    clearFeedback();
+
+    if (!selectedCaseId || !selectedCase) {
+      setError('Choose a case first.');
+      return;
+    }
+
+    if (selectedCase.voteCount === 0) {
+      setError('This case has no submitted reviewer votes yet.');
+      return;
+    }
+
+    if (!encryptedSummaryHandles) {
+      setError('Confidential tally handles are not ready yet.');
+      return;
+    }
+
+    if (!cofheReady) {
+      setError('The confidential client is still connecting.');
+      return;
+    }
+
+    try {
+      await authorize(selectedCaseId);
+
+      const [approvals, rejects, escalations, averageSeverityScore] = await Promise.all(
+        encryptedSummaryHandles.map((handle) => decryptHandleForTx(handle))
+      );
+
+      await publishConsensus(
+        selectedCaseId,
+        {
+          approvals: Number(approvals.decryptedValue),
+          rejects: Number(rejects.decryptedValue),
+          escalations: Number(escalations.decryptedValue),
+          averageSeverityScore: Number(averageSeverityScore.decryptedValue),
+        },
+        [
+          approvals.signature,
+          rejects.signature,
+          escalations.signature,
+          averageSeverityScore.signature,
+        ]
+      );
+
+      setNotice(`Published the confidential tally for case #${selectedCaseId}.`);
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : 'Unable to publish the confidential tally.');
     }
   };
 
@@ -270,7 +333,7 @@ export default function AdminDashboard() {
 
               <div className="glass rounded-3xl p-6 border border-white/10">
                 <h2 className="text-xl font-semibold">Route a case</h2>
-                <p className="text-sm text-gray-500 mt-2">Assign a reviewer and set the approval threshold.</p>
+                <p className="text-sm text-gray-500 mt-2">Assign a reviewer, set the approval threshold, and publish confidential tallies.</p>
                 <select
                   value={selectedCaseId}
                   onChange={(event) => setSelectedCaseId(Number(event.target.value))}
@@ -313,6 +376,18 @@ export default function AdminDashboard() {
                   className="w-full mt-4 py-4 rounded-2xl bg-fuchsia-500/15 border border-fuchsia-500/20 text-fuchsia-300 disabled:opacity-60"
                 >
                   {reviewerHubPending ? 'Waiting for wallet...' : 'Assign reviewer'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePublishConfidentialTally}
+                  disabled={authorizePending || publishPending || !cofheReady}
+                  className="w-full mt-4 py-4 rounded-2xl bg-amber-500/15 border border-amber-500/20 text-amber-300 disabled:opacity-60"
+                >
+                  {authorizePending || publishPending
+                    ? 'Publishing tally...'
+                    : !cofheReady
+                      ? 'Connecting confidential client...'
+                      : 'Publish confidential tally'}
                 </button>
               </div>
 
