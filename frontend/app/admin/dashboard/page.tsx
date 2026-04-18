@@ -215,7 +215,7 @@ export default function AdminDashboard() {
     try {
       await authorize(selectedCaseId);
 
-      const [approvals, rejects, escalations, averageSeverityScore] = await Promise.all(
+      const [approvals, rejects, escalations, severityTotal] = await Promise.all(
         encryptedSummaryHandles.map((handle) => decryptHandleForTx(handle))
       );
 
@@ -225,13 +225,17 @@ export default function AdminDashboard() {
           approvals: Number(approvals.decryptedValue),
           rejects: Number(rejects.decryptedValue),
           escalations: Number(escalations.decryptedValue),
-          averageSeverityScore: Number(averageSeverityScore.decryptedValue),
+          severityTotal: Number(severityTotal.decryptedValue),
+          averageSeverityScore:
+            selectedCase.voteCount > 0
+              ? Math.floor(Number(severityTotal.decryptedValue) / selectedCase.voteCount)
+              : 0,
         },
         [
           approvals.signature,
           rejects.signature,
           escalations.signature,
-          averageSeverityScore.signature,
+          severityTotal.signature,
         ]
       );
 
