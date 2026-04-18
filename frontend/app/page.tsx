@@ -1,10 +1,13 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import Link from 'next/link';
 import AnimatedCounter from '@/components/AnimatedCounter';
+
+const LandingContent = dynamic(() => Promise.resolve(function LandingPage() {
 
 const stats = [
   { label: 'Total Reports', value: 0, color: 'primary' },
