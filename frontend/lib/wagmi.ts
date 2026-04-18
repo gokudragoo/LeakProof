@@ -1,5 +1,6 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { mainnet, sepolia } from 'wagmi/chains';
+import { http } from 'wagmi';
 
 export const config = getDefaultConfig({
   appName: 'LeakProof X',
@@ -7,8 +8,8 @@ export const config = getDefaultConfig({
   chains: [sepolia, mainnet],
   ssr: true,
   transports: {
-    [sepolia.id]: 'https://ethereum-sepolia.publicnode.com',
-    [mainnet.id]: 'https://eth.llamarpc.com',
+    [sepolia.id]: http('https://ethereum-sepolia.publicnode.com'),
+    [mainnet.id]: http('https://eth.llamarpc.com'),
   },
 });
 
