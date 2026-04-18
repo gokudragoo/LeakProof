@@ -76,7 +76,7 @@ export interface CreateCaseInput {
 export interface VoteSubmission {
   caseId: number;
   recommendation: EncryptedUint8Input;
-  severityScore: EncryptedUint8Input;
+  severityScore: number;
   notes: string;
 }
 
