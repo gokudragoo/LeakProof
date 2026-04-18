@@ -40,7 +40,7 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
         {
           items: [
             { data: voteValue, utype: 2, securityZone: 0 },
-            { data: vote.severityScore, utype: 2, securityZone: 0 },
+            { data: BigInt(vote.severityScore), utype: 2, securityZone: 0 },
           ],
           account: walletAddress,
         }
