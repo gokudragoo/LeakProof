@@ -10,8 +10,6 @@ import { CASE_CATEGORY } from '@/lib/contracts';
 
 export default function SubmitReport() {
   const { isConnected, address } = useAccount();
-  const publicClient = usePublicClient();
-  const { data: walletClient } = useWalletClient();
   const { createCase, isPending, isSuccess, txHash } = useCreateCase();
 
   const [formData, setFormData] = useState({
