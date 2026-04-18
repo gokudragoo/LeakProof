@@ -30,7 +30,7 @@ export default function DisclosurePanel({ caseId, isAdmin }: DisclosurePanelProp
   };
 
   return (
-    <div className="p-6 rounded-xl bg-dark-700/50 border border-emerald-500/30">
+    <div className="p-6 rounded-2xl bg-slate-950/50 border border-emerald-500/30">
       <h3 className="text-lg font-semibold mb-4">Disclosure control</h3>
 
       <div className="space-y-4">
@@ -39,7 +39,7 @@ export default function DisclosurePanel({ caseId, isAdmin }: DisclosurePanelProp
           value={selectedAddress}
           onChange={(event) => setSelectedAddress(event.target.value)}
           placeholder="0x..."
-          className="w-full px-4 py-3 rounded-lg bg-dark-800 border border-gray-700 focus:border-emerald-500 outline-none"
+          className="w-full px-4 py-3 rounded-2xl bg-slate-950/60 border border-white/10 focus:border-emerald-500 outline-none"
         />
 
         <div className="grid grid-cols-2 gap-2">
@@ -48,7 +48,7 @@ export default function DisclosurePanel({ caseId, isAdmin }: DisclosurePanelProp
               key={level}
               type="button"
               onClick={() => setPermissionLevel(level)}
-              className={`px-3 py-3 rounded-lg border ${permissionLevel === level ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300' : 'border-gray-700 bg-dark-800'}`}
+              className={`px-3 py-3 rounded-2xl border ${permissionLevel === level ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300' : 'border-white/10 bg-slate-950/40'}`}
             >
               {getPermissionLevelLabel(level)}
             </button>
@@ -59,13 +59,13 @@ export default function DisclosurePanel({ caseId, isAdmin }: DisclosurePanelProp
           type="button"
           onClick={handleGrantAccess}
           disabled={!selectedAddress || !isAdmin || isPending}
-          className="w-full py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-600 text-white font-medium"
+          className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-600 text-white font-medium"
         >
           {isPending ? 'Waiting for wallet...' : 'Grant access'}
         </button>
 
         {message ? (
-          <div className="p-3 rounded-lg bg-emerald-500/20 text-emerald-300 text-sm text-center">
+          <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-300 text-sm text-center">
             {message}
           </div>
         ) : null}
