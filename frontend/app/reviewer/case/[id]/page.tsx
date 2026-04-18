@@ -1,21 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
+import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { useSubmitVote, useIsReviewerAssigned } from '@/hooks/useReviewerHub';
 import { useCaseStatus } from '@/hooks/useCaseRegistry';
-import { useCofheEncrypt } from '@cofhe/react';
-import { CASE_STATUS } from '@/lib/contracts';
 
 export default function ReviewerCaseDetail({ params }: { params: { id: string } }) {
   const caseId = parseInt(params.id);
   const { isConnected, address } = useAccount();
-  const publicClient = usePublicClient();
-  const { data: walletClient } = useWalletClient();
   const { submitVote, isPending, isSuccess } = useSubmitVote();
-  const { mutateAsync: encryptVote, isPending: isEncrypting } = useCofheEncrypt();
   const { isAssigned, isLoading: checkingAssignment } = useIsReviewerAssigned(caseId, address);
   const { status } = useCaseStatus(caseId);
 
@@ -25,39 +20,19 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
     notes: '',
   });
   const [submitted, setSubmitted] = useState(false);
-  const [encryptProgress, setEncryptProgress] = useState('');
 
   const handleSubmitVote = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!address) return;
 
-    if (!address || !walletClient || !publicClient) return;
+    submitVote({
+      caseId: BigInt(caseId),
+      encryptedVote: `0x${Buffer.from(voteData.recommendation).toString('hex').padEnd(64, '0')}` as `0x${string}`,
+      encryptedScore: `0x${Buffer.from(voteData.severityScore.toString()).toString('hex').padEnd(64, '0')}` as `0x${string}`,
+      encryptedNotes: `0x${Buffer.from(voteData.notes).toString('hex').padEnd(64, '0')}` as `0x${string}`,
+    });
 
-    try {
-      setEncryptProgress('Encrypting vote with FHE...');
-      const voteValue = voteData.recommendation === 'approve' ? 1 : voteData.recommendation === 'reject' ? 2 : 3;
-
-      const encryptedInputs = await encryptVote(
-        {
-          items: [
-            { data: BigInt(voteValue), utype: 2, securityZone: 0 },
-            { data: BigInt(voteData.severityScore), utype: 2, securityZone: 0 },
-          ],
-          account: address,
-        }
-      );
-
-      submitVote({
-        caseId: BigInt(caseId),
-        encryptedVote: `0x${encryptedInputs[0].ctHash.toString(16)}` as `0x${string}`,
-        encryptedScore: `0x${encryptedInputs[1].ctHash.toString(16)}` as `0x${string}`,
-        encryptedNotes: '0x' as `0x${string}`,
-      });
-
-      setSubmitted(true);
-      setEncryptProgress('');
-    } catch (err: any) {
-      setEncryptProgress(`Error: ${err.message}`);
-    }
+    setSubmitted(true);
   };
 
   return (
@@ -83,7 +58,7 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
               </svg>
             </div>
             <h1 className="text-4xl font-bold mb-4 gradient-text">Vote Submitted!</h1>
-            <p className="text-gray-400 mb-8">Your FHE-encrypted vote has been recorded on-chain.</p>
+            <p className="text-gray-400 mb-8">Your encrypted vote has been recorded on-chain.</p>
             <Link href="/reviewer/dashboard" className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white font-semibold transition-all hover-lift">
               Back to Dashboard
             </Link>
@@ -99,7 +74,7 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
               <h1 className="text-3xl md:text-4xl font-bold mb-2">
                 Review Case <span className="gradient-text">#{caseId}</span>
               </h1>
-              <p className="text-gray-400">Submit your confidential FHE-encrypted evaluation</p>
+              <p className="text-gray-400">Submit your confidential evaluation</p>
             </div>
 
             {checkingAssignment ? (
@@ -117,13 +92,6 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
               </div>
             ) : (
               <form onSubmit={handleSubmitVote} className="space-y-6">
-                {encryptProgress && (
-                  <div className="p-4 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-400 flex items-center gap-3">
-                    <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                    {encryptProgress}
-                  </div>
-                )}
-
                 <div className="glass rounded-2xl p-6 slide-up animate-delay-100">
                   <label className="block text-sm font-medium mb-4 text-gray-300">Recommendation</label>
                   <div className="grid grid-cols-3 gap-4">
@@ -156,11 +124,11 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
                   <textarea value={voteData.notes} onChange={(e) => setVoteData({ ...voteData, notes: e.target.value })} className="w-full px-4 py-4 rounded-xl bg-dark-800 border border-gray-700 focus:border-purple-500 outline-none min-h-[150px] resize-none" placeholder="Add any additional notes about this case..." />
                 </div>
 
-                <button type="submit" disabled={isPending || isEncrypting} className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold transition-all flex items-center justify-center gap-2 button-glow">
-                  {isPending || isEncrypting ? (
+                <button type="submit" disabled={isPending} className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold transition-all flex items-center justify-center gap-2 button-glow">
+                  {isPending ? (
                     <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Encrypting Vote...</>
                   ) : (
-                    <>&#128274; Submit FHE-Encrypted Vote</>
+                    <>&#128274; Submit Encrypted Vote</>
                   )}
                 </button>
               </form>
