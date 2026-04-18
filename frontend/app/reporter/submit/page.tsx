@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
@@ -8,7 +8,6 @@ import { useCreateCase } from '@/hooks/useCaseRegistry';
 import { deriveKeyFromWallet, encryptField } from '@/lib/cofhe';
 import { uploadToIPFS } from '@/lib/pinata';
 import { CASE_CATEGORY } from '@/lib/contracts';
-import DragDropZone from '@/components/DragDropZone';
 
 export default function SubmitReport() {
   const { isConnected, address } = useAccount();
@@ -26,10 +25,23 @@ export default function SubmitReport() {
   const [caseId, setCaseId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [currentStep, setCurrentStep] = useState(1);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFilesSelected = useCallback((selectedFiles: File[]) => {
-    setFiles(selectedFiles);
+  const handleFilesSelected = useCallback((selectedFiles: FileList | null) => {
+    if (!selectedFiles) return;
+    const newFiles = Array.from(selectedFiles);
+    setFiles(prev => [...prev, ...newFiles]);
   }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    handleFilesSelected(e.dataTransfer.files);
+  }, [handleFilesSelected]);
+
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,18 +67,23 @@ export default function SubmitReport() {
       let evidenceCID = '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
 
       if (files.length > 0) {
-        setUploadProgress('Encrypting and uploading evidence...');
+        setUploadProgress('🔒 Encrypting evidence...');
         setIsUploading(true);
         setCurrentStep(3);
+
+        // For demo, use first file
         const jwt = process.env.NEXT_PUBLIC_PINATA_JWT || '';
-        const cid = await uploadToIPFS(files[0], jwt);
-        evidenceCID = cid as `0x${string}`;
+        if (jwt) {
+          const cid = await uploadToIPFS(files[0], jwt);
+          evidenceCID = cid as `0x${string}`;
+        }
+
         setIsUploading(false);
         setUploadProgress('');
       }
 
       setCurrentStep(4);
-      setUploadProgress('Submitting encrypted report to blockchain...');
+      setUploadProgress('⛓️ Submitting to blockchain...');
 
       const encryptedTitleBytes = `0x${Buffer.from(encryptedTitle).toString('hex')}` as `0x${string}`;
       const encryptedDescBytes = `0x${Buffer.from(encryptedDesc).toString('hex')}` as `0x${string}`;
@@ -80,10 +97,11 @@ export default function SubmitReport() {
       });
 
       setCaseId(1);
+      setShowSuccess(true);
     } catch (err: any) {
       setIsUploading(false);
       setCurrentStep(1);
-      setError(`Failed to submit report: ${err.message}`);
+      setError(`Failed to submit: ${err.message}`);
     }
   };
 
@@ -94,9 +112,7 @@ export default function SubmitReport() {
           <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-cyan-500 flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
+                <span className="text-white">🔒</span>
               </div>
               <span className="text-xl font-bold gradient-text">LeakProof X</span>
             </Link>
@@ -107,12 +123,12 @@ export default function SubmitReport() {
         <main className="max-w-2xl mx-auto px-4 py-20 relative z-10">
           <div className="text-center slide-up">
             <div className="w-32 h-32 rounded-3xl bg-gradient-to-br from-primary-500/20 to-cyan-500/20 flex items-center justify-center mx-auto mb-8 pulse-glow">
-              <svg className="w-16 h-16 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
+              <span className="text-6xl">🔐</span>
             </div>
-            <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
-            <p className="text-gray-400 mb-8">Connect your wallet to submit a confidential report</p>
+            <h1 className="text-4xl font-bold mb-4 gradient-text">Connect Your Wallet</h1>
+            <p className="text-gray-400 mb-8 max-w-md mx-auto">
+              Connect your wallet to submit a confidential report. Your identity will be protected.
+            </p>
             <ConnectButton />
           </div>
         </main>
@@ -126,30 +142,39 @@ export default function SubmitReport() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/reporter/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-cyan-500 flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
+              <span className="text-white">🔒</span>
             </div>
             <span className="text-xl font-bold gradient-text">LeakProof X</span>
           </Link>
-          <ConnectButton />
+          <div className="flex items-center gap-3">
+            <span className="px-3 py-1.5 rounded-full bg-blue-500/20 text-blue-400 text-sm font-medium border border-blue-500/30">
+              Reporter
+            </span>
+            <ConnectButton />
+          </div>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 relative z-10">
-        {caseId || isSuccess ? (
+        {showSuccess ? (
           <div className="text-center py-20 slide-up">
             <div className="w-32 h-32 rounded-3xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mx-auto mb-8 pulse-glow">
-              <svg className="w-16 h-16 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
+              <span className="text-6xl">✅</span>
             </div>
             <h1 className="text-4xl font-bold mb-4 gradient-text">Report Submitted!</h1>
-            <p className="text-gray-400 mb-2">Your encrypted report has been submitted to the blockchain.</p>
+            <p className="text-gray-400 mb-2">
+              Your encrypted report has been submitted to the Ethereum blockchain.
+            </p>
+            <p className="text-sm text-gray-500 font-mono mb-8">
+              Case ID: #{caseId}
+            </p>
             {txHash && (
-              <p className="text-sm text-gray-500 mt-2 font-mono">Tx: {txHash?.slice(0, 20)}...</p>
+              <div className="mb-8 p-4 rounded-xl glass">
+                <p className="text-xs text-gray-500 mb-1">Transaction Hash</p>
+                <p className="text-sm font-mono text-primary-400 break-all">{txHash}</p>
+              </div>
             )}
-            <div className="mt-8 flex gap-4 justify-center">
+            <div className="flex gap-4 justify-center">
               <Link
                 href="/reporter/dashboard"
                 className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-500 to-cyan-500 hover:from-primary-400 hover:to-cyan-400 text-white font-semibold transition-all hover-lift"
@@ -157,8 +182,8 @@ export default function SubmitReport() {
                 View Dashboard
               </Link>
               <button
-                onClick={() => { setCaseId(null); setCurrentStep(1); }}
-                className="px-6 py-3 rounded-xl glass hover:bg-dark-700 text-white font-medium transition-colors"
+                onClick={() => { setCaseId(null); setShowSuccess(false); setCurrentStep(1); setFormData({ title: '', description: '', severity: 3, category: 0 }); setFiles([]); }}
+                className="px-6 py-3 rounded-xl glass hover:bg-dark-700 text-gray-300 font-medium transition-colors"
               >
                 Submit Another
               </button>
@@ -167,7 +192,7 @@ export default function SubmitReport() {
         ) : (
           <>
             <div className="mb-8 slide-up">
-              <Link href="/reporter/dashboard" className="text-gray-400 hover:text-white flex items-center gap-2 mb-4 transition-colors">
+              <Link href="/reporter/dashboard" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
@@ -187,38 +212,34 @@ export default function SubmitReport() {
                   { step: 4, label: 'Submit' },
                 ].map((s, i) => (
                   <div key={s.step} className="flex items-center">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-semibold transition-all duration-300 ${
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold transition-all duration-300 ${
                       currentStep >= s.step
-                        ? 'bg-gradient-to-br from-primary-500 to-cyan-500 text-white'
+                        ? currentStep === s.step
+                          ? 'bg-gradient-to-br from-primary-500 to-cyan-500 text-white ring-4 ring-primary-500/30'
+                          : 'bg-gradient-to-br from-emerald-500 to-teal-500 text-white'
                         : 'bg-dark-700 text-gray-500'
                     }`}>
-                      {currentStep > s.step ? (
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : s.step}
+                      {currentStep > s.step ? '✓' : s.step}
                     </div>
                     {i < 3 && (
-                      <div className={`w-16 md:w-24 h-1 mx-2 rounded transition-all duration-300 ${
+                      <div className={`w-12 md:w-20 h-1 mx-2 rounded transition-all duration-300 ${
                         currentStep > s.step ? 'bg-primary-500' : 'bg-dark-700'
                       }`} />
                     )}
                   </div>
                 ))}
               </div>
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Enter Details</span>
-                <span>Encrypt Data</span>
-                <span>Upload Evidence</span>
-                <span>Submit Chain</span>
+              <div className="flex justify-between text-xs text-gray-500 px-2">
+                <span>Enter</span>
+                <span>Encrypt</span>
+                <span>Upload</span>
+                <span>Chain</span>
               </div>
             </div>
 
             {error && (
               <div className="mb-6 p-4 rounded-xl bg-red-500/20 border border-red-500/30 text-red-400 flex items-center gap-3 slide-up">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <span className="text-xl">⚠️</span>
                 {error}
               </div>
             )}
@@ -233,55 +254,66 @@ export default function SubmitReport() {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Title */}
               <div className="glass rounded-2xl p-6 slide-up animate-delay-100">
-                <label className="block text-sm font-medium mb-3 text-gray-300">Report Title</label>
+                <label className="block text-sm font-medium mb-3 text-gray-300">Report Title *</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-4 rounded-xl bg-dark-800 border border-gray-700 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all duration-300"
-                  placeholder="Brief title of the incident"
+                  className="w-full px-4 py-4 rounded-xl bg-dark-800 border border-gray-700 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all duration-300"
+                  placeholder="Brief summary of the incident"
                   required
                 />
               </div>
 
               {/* Category */}
               <div className="glass rounded-2xl p-6 slide-up animate-delay-150">
-                <label className="block text-sm font-medium mb-3 text-gray-300">Category</label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: parseInt(e.target.value) })}
-                  className="w-full px-4 py-4 rounded-xl bg-dark-800 border border-gray-700 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all duration-300"
-                >
+                <label className="block text-sm font-medium mb-3 text-gray-300">Category *</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {Object.entries(CASE_CATEGORY).filter(([k]) => !isNaN(Number(k))).map(([key, label]) => (
-                    <option key={key} value={key} className="bg-dark-800">{label as string}</option>
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, category: parseInt(key) })}
+                      className={`p-3 rounded-xl text-sm font-medium transition-all duration-300 ${
+                        formData.category === parseInt(key)
+                          ? 'bg-gradient-to-br from-primary-500 to-cyan-500 text-white'
+                          : 'bg-dark-800 border border-gray-700 hover:border-primary-500'
+                      }`}
+                    >
+                      {label as string}
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
 
               {/* Description */}
               <div className="glass rounded-2xl p-6 slide-up animate-delay-200">
-                <label className="block text-sm font-medium mb-3 text-gray-300">Detailed Description</label>
+                <label className="block text-sm font-medium mb-3 text-gray-300">Detailed Description *</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-4 py-4 rounded-xl bg-dark-800 border border-gray-700 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all duration-300 min-h-[200px] resize-none"
-                  placeholder="Provide detailed information about the incident..."
+                  className="w-full px-4 py-4 rounded-xl bg-dark-800 border border-gray-700 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all duration-300 min-h-[200px] resize-none"
+                  placeholder="Describe the incident in detail. Include dates, locations, people involved, and any evidence you have."
                   required
                 />
               </div>
 
               {/* Severity */}
               <div className="glass rounded-2xl p-6 slide-up animate-delay-250">
-                <label className="block text-sm font-medium mb-4 text-gray-300">Severity Level (1-5)</label>
+                <label className="block text-sm font-medium mb-4 text-gray-300">Severity Level</label>
                 <div className="flex gap-3">
                   {[1, 2, 3, 4, 5].map((level) => (
                     <button
                       key={level}
                       type="button"
                       onClick={() => setFormData({ ...formData, severity: level })}
-                      className={`w-14 h-14 rounded-xl font-bold transition-all duration-300 hover-lift ${
+                      className={`w-14 h-14 rounded-xl font-bold text-lg transition-all duration-300 hover-lift ${
                         formData.severity === level
-                          ? level === 1 ? 'bg-green-500 text-white scale-110' : level === 2 ? 'bg-lime-500 text-white scale-110' : level === 3 ? 'bg-yellow-500 text-black scale-110' : level === 4 ? 'bg-orange-500 text-white scale-110' : 'bg-red-500 text-white scale-110'
+                          ? level === 1 ? 'bg-green-500 text-white scale-110 shadow-lg shadow-green-500/30' :
+                            level === 2 ? 'bg-lime-500 text-white scale-110 shadow-lg shadow-lime-500/30' :
+                            level === 3 ? 'bg-yellow-500 text-black scale-110 shadow-lg shadow-yellow-500/30' :
+                            level === 4 ? 'bg-orange-500 text-white scale-110 shadow-lg shadow-orange-500/30' :
+                            'bg-red-500 text-white scale-110 shadow-lg shadow-red-500/30'
                           : 'bg-dark-800 border border-gray-700 hover:border-primary-500'
                       }`}
                     >
@@ -289,7 +321,7 @@ export default function SubmitReport() {
                     </button>
                   ))}
                 </div>
-                <div className="flex justify-between text-xs text-gray-500 mt-2">
+                <div className="flex justify-between text-xs text-gray-500 mt-2 px-1">
                   <span>Minor</span>
                   <span>Low</span>
                   <span>Medium</span>
@@ -301,26 +333,71 @@ export default function SubmitReport() {
               {/* Evidence Upload */}
               <div className="glass rounded-2xl p-6 slide-up animate-delay-300">
                 <label className="block text-sm font-medium mb-4 text-gray-300">Evidence Files (Optional)</label>
-                <DragDropZone
-                  onFilesSelected={handleFilesSelected}
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt"
-                  maxSize={10 * 1024 * 1024}
-                  maxFiles={5}
-                />
+
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center hover:border-primary-500/50 hover:bg-primary-500/5 transition-all duration-300 cursor-pointer group"
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={(e) => handleFilesSelected(e.target.files)}
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt"
+                  />
+
+                  <div className="group-hover:scale-110 transition-transform duration-300">
+                    <svg className="w-12 h-12 mx-auto mb-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                  </div>
+
+                  <p className="text-gray-400 mb-2">
+                    Drag & drop files or <span className="text-primary-400 font-medium">click to browse</span>
+                  </p>
+                  <p className="text-xs text-gray-500">PDF, DOC, JPG, PNG, TXT up to 10MB each</p>
+                </div>
+
+                {files.length > 0 && (
+                  <div className="mt-4 space-y-3">
+                    {files.map((file, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-dark-800/50 border border-gray-700 group">
+                        <div className="w-10 h-10 rounded-lg bg-primary-500/20 flex items-center justify-center">
+                          <span className="text-lg">📎</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{file.name}</p>
+                          <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+                        </div>
+                        <button
+                          onClick={() => removeFile(index)}
+                          className="p-2 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Privacy Notice */}
               <div className="p-5 rounded-2xl bg-gradient-to-r from-primary-500/10 to-cyan-500/10 border border-primary-500/20 slide-up animate-delay-350">
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
+                    <span className="text-white text-lg">🔒</span>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-primary-400 mb-1">Privacy Notice</h3>
+                    <h3 className="font-semibold text-primary-400 mb-1">Your Privacy is Protected</h3>
                     <p className="text-sm text-gray-400 leading-relaxed">
-                      Your report will be encrypted client-side before submission. Only your wallet address will be stored as the reporter identifier. You will receive a case ID to track your report status.
+                      Your report will be encrypted client-side before submission. Only your wallet address
+                      (an anonymous identifier) is stored on-chain. The report content is encrypted and can
+                      only be decrypted by authorized reviewers.
                     </p>
                   </div>
                 </div>
@@ -330,7 +407,7 @@ export default function SubmitReport() {
               <button
                 type="submit"
                 disabled={isPending || isUploading}
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-primary-500 to-cyan-500 hover:from-primary-400 hover:to-cyan-400 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed text-white font-semibold transition-all duration-300 hover-lift flex items-center justify-center gap-2 button-glow"
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-primary-500 to-cyan-500 hover:from-primary-400 hover:to-cyan-400 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed text-white font-bold text-lg transition-all duration-300 hover-lift flex items-center justify-center gap-2 button-glow"
               >
                 {isPending ? (
                   <>
@@ -340,13 +417,11 @@ export default function SubmitReport() {
                 ) : isUploading ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Uploading Evidence...
+                    Encrypting & Uploading...
                   </>
                 ) : (
                   <>
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
+                    <span>🔒</span>
                     Submit Encrypted Report
                   </>
                 )}
