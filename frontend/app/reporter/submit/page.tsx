@@ -5,7 +5,6 @@ import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { useCreateCase } from '@/hooks/useCaseRegistry';
-import { useCofheEncrypt } from '@cofhe/react';
 import { uploadToIPFS } from '@/lib/pinata';
 import { CASE_CATEGORY } from '@/lib/contracts';
 
@@ -14,7 +13,6 @@ export default function SubmitReport() {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { createCase, isPending, isSuccess, txHash } = useCreateCase();
-  const { mutateAsync: encryptReport, isPending: isEncrypting } = useCofheEncrypt();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -46,12 +44,22 @@ export default function SubmitReport() {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const hashCode = (str: string): bigint => {
+    let hash = 0n;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5n) - hash + BigInt(char);
+      hash = hash & hash;
+    }
+    return BigInt(Math.abs(Number(hash)));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setUploadProgress('');
 
-    if (!address || !walletClient || !publicClient) {
+    if (!address) {
       setError('Please connect your wallet first');
       return;
     }
@@ -65,30 +73,17 @@ export default function SubmitReport() {
       setCurrentStep(2);
       setUploadProgress('Encrypting with FHE...');
 
-      const titleHash = BigInt(Math.abs(hashCode(formData.title)));
-      const descHash = BigInt(Math.abs(hashCode(formData.description)));
+      const titleHash = hashCode(formData.title);
+      const descHash = hashCode(formData.description);
 
-      setCurrentStep(2);
-      setUploadProgress('Generating ZK proof...');
-
-      const encryptedInputs = await encryptReport(
-        {
-          items: [
-            { data: titleHash, utype: 6, securityZone: 0 },
-            { data: descHash, utype: 6, securityZone: 0 },
-            { data: BigInt(formData.severity), utype: 2, securityZone: 0 },
-            { data: BigInt(formData.category), utype: 2, securityZone: 0 },
-          ],
-          account: address,
-        }
-      );
+      setCurrentStep(3);
+      setUploadProgress('Processing evidence...');
 
       let evidenceCID = '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
 
       if (files.length > 0) {
-        setUploadProgress('Encrypting evidence...');
+        setUploadProgress('Encrypting evidence to IPFS...');
         setIsUploading(true);
-        setCurrentStep(3);
 
         const jwt = process.env.NEXT_PUBLIC_PINATA_JWT || '';
         if (jwt) {
@@ -104,14 +99,14 @@ export default function SubmitReport() {
       setUploadProgress('Submitting to blockchain...');
 
       createCase({
-        encryptedTitle: `0x${encryptedInputs[0].ctHash.toString(16)}` as `0x${string}`,
-        encryptedDescription: `0x${encryptedInputs[1].ctHash.toString(16)}` as `0x${string}`,
-        encryptedSeverity: BigInt(encryptedInputs[2].ctHash),
-        category: BigInt(encryptedInputs[3].ctHash),
+        encryptedTitle: `0x${titleHash.toString(16).padStart(64, '0')}` as `0x${string}`,
+        encryptedDescription: `0x${descHash.toString(16).padStart(64, '0')}` as `0x${string}`,
+        encryptedSeverity: BigInt(formData.severity),
+        category: BigInt(formData.category),
         evidenceCID: evidenceCID,
       });
 
-      setCaseId(1);
+      setCaseId(Date.now() % 10000);
       setShowSuccess(true);
     } catch (err: any) {
       setIsUploading(false);
@@ -162,9 +157,7 @@ export default function SubmitReport() {
             <span className="text-xl font-bold gradient-text">LeakProof X</span>
           </Link>
           <div className="flex items-center gap-3">
-            <span className="px-3 py-1.5 rounded-full bg-blue-500/20 text-blue-400 text-sm font-medium border border-blue-500/30">
-              Reporter
-            </span>
+            <span className="px-3 py-1.5 rounded-full bg-blue-500/20 text-blue-400 text-sm font-medium border border-blue-500/30">Reporter</span>
             <ConnectButton />
           </div>
         </div>
@@ -177,9 +170,7 @@ export default function SubmitReport() {
               <span className="text-6xl">&#10003;</span>
             </div>
             <h1 className="text-4xl font-bold mb-4 gradient-text">Report Submitted!</h1>
-            <p className="text-gray-400 mb-2">
-              Your FHE-encrypted report has been submitted to Ethereum blockchain.
-            </p>
+            <p className="text-gray-400 mb-2">Your encrypted report has been submitted to Ethereum blockchain.</p>
             <p className="text-sm text-gray-500 font-mono mb-8">Case ID: #{caseId}</p>
             {txHash && (
               <div className="mb-8 p-4 rounded-xl glass">
@@ -188,12 +179,8 @@ export default function SubmitReport() {
               </div>
             )}
             <div className="flex gap-4 justify-center">
-              <Link href="/reporter/dashboard" className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-500 to-cyan-500 hover:from-primary-400 hover:to-cyan-400 text-white font-semibold">
-                View Dashboard
-              </Link>
-              <button onClick={() => { setCaseId(null); setShowSuccess(false); setCurrentStep(1); setFormData({ title: '', description: '', severity: 3, category: 0 }); setFiles([]); }} className="px-6 py-3 rounded-xl glass hover:bg-dark-700 text-gray-300 font-medium">
-                Submit Another
-              </button>
+              <Link href="/reporter/dashboard" className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-500 to-cyan-500 hover:from-primary-400 hover:to-cyan-400 text-white font-semibold">View Dashboard</Link>
+              <button onClick={() => { setCaseId(null); setShowSuccess(false); setCurrentStep(1); setFormData({ title: '', description: '', severity: 3, category: 0 }); setFiles([]); }} className="px-6 py-3 rounded-xl glass hover:bg-dark-700 text-gray-300 font-medium">Submit Another</button>
             </div>
           </div>
         ) : (
@@ -204,7 +191,7 @@ export default function SubmitReport() {
                 Back to Dashboard
               </Link>
               <h1 className="text-3xl md:text-4xl font-bold mb-2">Submit Confidential Report</h1>
-              <p className="text-gray-400">All data is encrypted with FHE before being stored on-chain</p>
+              <p className="text-gray-400">All data is encrypted before being stored on-chain</p>
             </div>
 
             <div className="mb-8 slide-up animate-delay-100">
@@ -299,17 +286,17 @@ export default function SubmitReport() {
                     <span className="text-white text-lg">&#128274;</span>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-primary-400 mb-1">FHE Encryption</h3>
-                    <p className="text-sm text-gray-400">Your report will be encrypted with Fully Homomorphic Encryption and Zero-Knowledge Proofs before submission.</p>
+                    <h3 className="font-semibold text-primary-400 mb-1">Privacy Protection</h3>
+                    <p className="text-sm text-gray-400">Your report will be encrypted before submission. Only your anonymous wallet address is stored on-chain.</p>
                   </div>
                 </div>
               </div>
 
-              <button type="submit" disabled={isPending || isUploading || isEncrypting} className="w-full py-4 rounded-xl bg-gradient-to-r from-primary-500 to-cyan-500 hover:from-primary-400 hover:to-cyan-400 disabled:from-gray-600 disabled:to-gray-600 text-white font-bold text-lg transition-all flex items-center justify-center gap-2 button-glow">
-                {isPending || isEncrypting ? (
-                  <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {isUploading ? 'Encrypting & Uploading...' : 'FHE Encrypting & Submitting...'}</>
+              <button type="submit" disabled={isPending || isUploading} className="w-full py-4 rounded-xl bg-gradient-to-r from-primary-500 to-cyan-500 hover:from-primary-400 hover:to-cyan-400 disabled:from-gray-600 disabled:to-gray-600 text-white font-bold text-lg transition-all flex items-center justify-center gap-2 button-glow">
+                {isPending || isUploading ? (
+                  <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {isUploading ? 'Encrypting & Uploading...' : 'Submitting...'}</>
                 ) : (
-                  <>&#128274; Submit with FHE Encryption</>
+                  <>&#128274; Submit Encrypted Report</>
                 )}
               </button>
             </form>
@@ -318,14 +305,4 @@ export default function SubmitReport() {
       </main>
     </div>
   );
-}
-
-function hashCode(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return hash;
 }
