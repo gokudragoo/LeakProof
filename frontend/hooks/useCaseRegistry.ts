@@ -156,7 +156,7 @@ export function useCreateCase() {
       args: [
         input.reportCid,
         input.reportDigest,
-        BigInt(input.category),
+        input.category,
         input.evidenceCid ?? "",
         input.evidenceDigest ??
           "0x0000000000000000000000000000000000000000000000000000000000000000",
