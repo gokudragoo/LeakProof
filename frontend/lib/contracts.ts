@@ -1,3 +1,11 @@
+import type { CaseRecord } from "@/types";
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
+function normalizeAddress(value: string | undefined) {
+  return /^0x[a-fA-F0-9]{40}$/.test(value ?? "") ? (value as `0x${string}`) : ZERO_ADDRESS;
+}
+
 export const ACCESS_CONTROL_ABI = [
   {
     inputs: [{ internalType: "address", name: "initialAdmin", type: "address" }],
@@ -5,23 +13,24 @@ export const ACCESS_CONTROL_ABI = [
     type: "constructor",
   },
   {
-    inputs: [
-      { internalType: "address", name: "account", type: "address" },
-      { internalType: "bytes32", name: "role", type: "bytes32" },
-    ],
-    name: "grantRole",
+    inputs: [{ internalType: "address", name: "account", type: "address" }],
+    name: "grantAdminRole",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [
-      { internalType: "bytes32", name: "role", type: "bytes32" },
-      { internalType: "address", name: "account", type: "address" },
-    ],
-    name: "hasRole",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
-    stateMutability: "view",
+    inputs: [{ internalType: "address", name: "account", type: "address" }],
+    name: "grantReviewerRole",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "account", type: "address" }],
+    name: "grantReporterRole",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -45,30 +54,16 @@ export const ACCESS_CONTROL_ABI = [
     stateMutability: "view",
     type: "function",
   },
-  {
-    inputs: [{ internalType: "address", name: "account", type: "address" }],
-    name: "grantAdminRole",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "account", type: "address" }],
-    name: "grantReviewerRole",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
 ] as const;
 
 export const CORE_ABI = [
   {
     inputs: [
-      { internalType: "bytes", name: "_encryptedTitle", type: "bytes" },
-      { internalType: "bytes", name: "_encryptedDescription", type: "bytes" },
-      { internalType: "uint8", name: "_encryptedSeverity", type: "uint8" },
-      { internalType: "uint8", name: "_category", type: "uint8" },
-      { internalType: "bytes32", name: "_evidenceCID", type: "bytes32" },
+      { internalType: "string", name: "reportCid", type: "string" },
+      { internalType: "bytes32", name: "reportDigest", type: "bytes32" },
+      { internalType: "uint8", name: "category", type: "uint8" },
+      { internalType: "string", name: "evidenceCid", type: "string" },
+      { internalType: "bytes32", name: "evidenceDigest", type: "bytes32" },
     ],
     name: "createCase",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
@@ -76,26 +71,98 @@ export const CORE_ABI = [
     type: "function",
   },
   {
-    inputs: [{ internalType: "uint256", name: "_caseId", type: "uint256" }],
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "uint256", name: "caseId", type: "uint256" },
+      { indexed: true, internalType: "address", name: "reporter", type: "address" },
+      { indexed: true, internalType: "uint8", name: "category", type: "uint8" },
+      { indexed: false, internalType: "string", name: "reportCid", type: "string" },
+      { indexed: false, internalType: "string", name: "evidenceCid", type: "string" },
+      { indexed: false, internalType: "uint256", name: "timestamp", type: "uint256" },
+    ],
+    name: "CaseCreated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "uint256", name: "caseId", type: "uint256" },
+      { indexed: false, internalType: "uint8", name: "oldStatus", type: "uint8" },
+      { indexed: false, internalType: "uint8", name: "newStatus", type: "uint8" },
+      { indexed: true, internalType: "address", name: "updater", type: "address" },
+    ],
+    name: "StatusUpdated",
+    type: "event",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
     name: "getCase",
     outputs: [
-      { internalType: "bytes", name: "", type: "bytes" },
-      { internalType: "bytes", name: "", type: "bytes" },
-      { internalType: "uint8", name: "", type: "uint8" },
-      { internalType: "uint8", name: "", type: "uint8" },
-      { internalType: "bytes32", name: "", type: "bytes32" },
-      { internalType: "address", name: "", type: "address" },
-      { internalType: "uint256", name: "", type: "uint256" },
-      { internalType: "uint256", name: "", type: "uint256" },
-      { internalType: "uint8", name: "", type: "uint8" },
+      { internalType: "string", name: "reportCid", type: "string" },
+      { internalType: "bytes32", name: "reportDigest", type: "bytes32" },
+      { internalType: "uint8", name: "category", type: "uint8" },
+      { internalType: "string", name: "evidenceCid", type: "string" },
+      { internalType: "bytes32", name: "evidenceDigest", type: "bytes32" },
+      { internalType: "address", name: "reporter", type: "address" },
+      { internalType: "uint256", name: "createdAt", type: "uint256" },
+      { internalType: "uint256", name: "updatedAt", type: "uint256" },
+      { internalType: "uint8", name: "status", type: "uint8" },
+      { internalType: "uint256", name: "reviewerCount", type: "uint256" },
+      { internalType: "uint256", name: "voteCount", type: "uint256" },
+      { internalType: "uint256", name: "approvalCount", type: "uint256" },
+      { internalType: "uint256", name: "rejectCount", type: "uint256" },
+      { internalType: "uint256", name: "escalationCount", type: "uint256" },
+      { internalType: "uint8", name: "averageSeverityScore", type: "uint8" },
     ],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [{ internalType: "uint256", name: "_caseId", type: "uint256" }],
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
     name: "getCaseStatus",
     outputs: [{ internalType: "uint8", name: "", type: "uint8" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "getCaseReporter",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "getCaseReviewers",
+    outputs: [{ internalType: "address[]", name: "", type: "address[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "reporter", type: "address" }],
+    name: "getCasesByReporter",
+    outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint8", name: "status", type: "uint8" }],
+    name: "getCasesByStatus",
+    outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getAllCases",
+    outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "caseExists",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
     stateMutability: "view",
     type: "function",
   },
@@ -107,26 +174,43 @@ export const CORE_ABI = [
     type: "function",
   },
   {
-    inputs: [{ internalType: "uint256", name: "_caseId", type: "uint256" }],
-    name: "getCaseReviewers",
-    outputs: [{ internalType: "address[]", name: "", type: "address[]" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "getAllCases",
-    outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
-    stateMutability: "view",
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "uint8", name: "newStatus", type: "uint8" },
+    ],
+    name: "updateStatus",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
 ] as const;
 
 export const REVIEWER_HUB_ABI = [
   {
+    anonymous: false,
     inputs: [
-      { internalType: "uint256", name: "_caseId", type: "uint256" },
-      { internalType: "address", name: "_reviewer", type: "address" },
+      { indexed: true, internalType: "uint256", name: "caseId", type: "uint256" },
+      { indexed: true, internalType: "address", name: "reviewer", type: "address" },
+      { indexed: true, internalType: "address", name: "assigner", type: "address" },
+    ],
+    name: "ReviewerAssigned",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "uint256", name: "caseId", type: "uint256" },
+      { indexed: true, internalType: "address", name: "reviewer", type: "address" },
+      { indexed: false, internalType: "uint8", name: "recommendation", type: "uint8" },
+      { indexed: false, internalType: "uint8", name: "severityScore", type: "uint8" },
+    ],
+    name: "VoteSubmitted",
+    type: "event",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "address", name: "reviewer", type: "address" },
     ],
     name: "assignReviewer",
     outputs: [],
@@ -135,10 +219,10 @@ export const REVIEWER_HUB_ABI = [
   },
   {
     inputs: [
-      { internalType: "uint256", name: "_caseId", type: "uint256" },
-      { internalType: "bytes", name: "_encryptedVote", type: "bytes" },
-      { internalType: "bytes", name: "_encryptedScore", type: "bytes" },
-      { internalType: "bytes", name: "_encryptedNotes", type: "bytes" },
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "uint8", name: "recommendation", type: "uint8" },
+      { internalType: "uint8", name: "severityScore", type: "uint8" },
+      { internalType: "string", name: "encryptedNotes", type: "string" },
     ],
     name: "submitVote",
     outputs: [],
@@ -146,18 +230,31 @@ export const REVIEWER_HUB_ABI = [
     type: "function",
   },
   {
-    inputs: [{ internalType: "uint256", name: "_caseId", type: "uint256" }],
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
     name: "getReviewerVotes",
     outputs: [
-      { internalType: "address[]", name: "", type: "address[]" },
-      { internalType: "bool[]", name: "", type: "bool[]" },
-      { internalType: "bytes[]", name: "", type: "bytes[]" },
+      { internalType: "address[]", name: "reviewers", type: "address[]" },
+      { internalType: "bool[]", name: "voted", type: "bool[]" },
+      { internalType: "uint8[]", name: "recommendations", type: "uint8[]" },
+      { internalType: "uint8[]", name: "severityScores", type: "uint8[]" },
     ],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [{ internalType: "address", name: "_reviewer", type: "address" }],
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "getVoteSummary",
+    outputs: [
+      { internalType: "uint256", name: "approvals", type: "uint256" },
+      { internalType: "uint256", name: "rejects", type: "uint256" },
+      { internalType: "uint256", name: "escalations", type: "uint256" },
+      { internalType: "uint256", name: "votes", type: "uint256" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "reviewer", type: "address" }],
     name: "getAssignedCases",
     outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
     stateMutability: "view",
@@ -165,8 +262,8 @@ export const REVIEWER_HUB_ABI = [
   },
   {
     inputs: [
-      { internalType: "uint256", name: "_caseId", type: "uint256" },
-      { internalType: "address", name: "_reviewer", type: "address" },
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "address", name: "reviewer", type: "address" },
     ],
     name: "isReviewerAssigned",
     outputs: [{ internalType: "bool", name: "", type: "bool" }],
@@ -174,8 +271,25 @@ export const REVIEWER_HUB_ABI = [
     type: "function",
   },
   {
-    inputs: [{ internalType: "uint256", name: "_caseId", type: "uint256" }],
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
     name: "getVoteCount",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "uint256", name: "threshold", type: "uint256" },
+    ],
+    name: "setApprovalThreshold",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    name: "approvalThreshold",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
@@ -185,9 +299,9 @@ export const REVIEWER_HUB_ABI = [
 export const DISCLOSURE_CTRL_ABI = [
   {
     inputs: [
-      { internalType: "uint256", name: "_caseId", type: "uint256" },
-      { internalType: "address", name: "_grantee", type: "address" },
-      { internalType: "uint8", name: "_level", type: "uint8" },
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "address", name: "grantee", type: "address" },
+      { internalType: "uint8", name: "level", type: "uint8" },
     ],
     name: "grantDisclosureAccess",
     outputs: [],
@@ -196,8 +310,28 @@ export const DISCLOSURE_CTRL_ABI = [
   },
   {
     inputs: [
-      { internalType: "uint256", name: "_caseId", type: "uint256" },
-      { internalType: "address", name: "_grantee", type: "address" },
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "address", name: "grantee", type: "address" },
+    ],
+    name: "revokeDisclosureAccess",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "uint8", name: "level", type: "uint8" },
+    ],
+    name: "requestDisclosure",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "address", name: "grantee", type: "address" },
     ],
     name: "getPermissionLevel",
     outputs: [{ internalType: "uint8", name: "", type: "uint8" }],
@@ -206,8 +340,8 @@ export const DISCLOSURE_CTRL_ABI = [
   },
   {
     inputs: [
-      { internalType: "address", name: "_user", type: "address" },
-      { internalType: "uint256", name: "_caseId", type: "uint256" },
+      { internalType: "address", name: "user", type: "address" },
+      { internalType: "uint256", name: "caseId", type: "uint256" },
     ],
     name: "canAccessCase",
     outputs: [
@@ -220,36 +354,84 @@ export const DISCLOSURE_CTRL_ABI = [
 ] as const;
 
 export const CONTRACTS = {
-  ACCESS_CONTROL: process.env.NEXT_PUBLIC_ACCESS_CONTROL || '0xcce613271DCBac6aF3CF4eBf53E4C992d6D8ef69',
-  CORE: process.env.NEXT_PUBLIC_CORE || '0x857dfb28574F58a67e7334a33EA7a00263Df9797',
-  REVIEWER_HUB: process.env.NEXT_PUBLIC_REVIEWER_HUB || '0x9D0c1dbbAF2E4849c27B88f8E8DA165D764ffB1b',
-  DISCLOSURE_CTRL: process.env.NEXT_PUBLIC_DISCLOSURE_CTRL || '0xB2078Aae5782788CA551A8212E27901233260E23',
+  ACCESS_CONTROL: normalizeAddress(process.env.NEXT_PUBLIC_ACCESS_CONTROL),
+  CORE: normalizeAddress(process.env.NEXT_PUBLIC_CORE),
+  REVIEWER_HUB: normalizeAddress(process.env.NEXT_PUBLIC_REVIEWER_HUB),
+  DISCLOSURE_CTRL: normalizeAddress(process.env.NEXT_PUBLIC_DISCLOSURE_CTRL),
 } as const;
 
-export const CASE_STATUS = {
-  0: 'Submitted',
-  1: 'UnderReview',
-  2: 'NeedsEvidence',
-  3: 'Escalated',
-  4: 'Verified',
-  5: 'Closed',
-  6: 'Rejected',
-} as const;
+export const CASE_STATUS = [
+  "Submitted",
+  "UnderReview",
+  "NeedsEvidence",
+  "Escalated",
+  "Verified",
+  "Closed",
+  "Rejected",
+] as const;
 
-export const CASE_CATEGORY = {
-  0: 'Fraud',
-  1: 'Harassment',
-  2: 'Corruption',
-  3: 'PolicyViolation',
-  4: 'FinancialMisconduct',
-  5: 'ComplianceBreach',
-  6: 'Other',
-} as const;
+export const CASE_CATEGORY = [
+  "Fraud",
+  "Harassment",
+  "Corruption",
+  "PolicyViolation",
+  "FinancialMisconduct",
+  "ComplianceBreach",
+  "Other",
+] as const;
 
-export const PERMISSION_LEVEL = {
-  0: 'None',
-  1: 'OutcomeOnly',
-  2: 'SummaryOnly',
-  3: 'FullReport',
-  4: 'IdentityReveal',
-} as const;
+export const PERMISSION_LEVEL = [
+  "None",
+  "OutcomeOnly",
+  "SummaryOnly",
+  "FullReport",
+  "IdentityReveal",
+] as const;
+
+export const REVIEW_RECOMMENDATION = [
+  "None",
+  "Approve",
+  "Reject",
+  "Escalate",
+] as const;
+
+export function getCaseStatusLabel(status: number) {
+  return CASE_STATUS[status] ?? `Unknown(${status})`;
+}
+
+export function getCaseCategoryLabel(category: number) {
+  return CASE_CATEGORY[category] ?? `Unknown(${category})`;
+}
+
+export function getPermissionLevelLabel(level: number) {
+  return PERMISSION_LEVEL[level] ?? `Unknown(${level})`;
+}
+
+export function getRecommendationLabel(recommendation: number) {
+  return REVIEW_RECOMMENDATION[recommendation] ?? `Unknown(${recommendation})`;
+}
+
+export function normalizeCaseRecord(caseId: number, data: readonly unknown[]): CaseRecord {
+  return {
+    id: caseId,
+    reportCid: String(data[0] ?? ""),
+    reportDigest: String(data[1] ?? "0x0") as `0x${string}`,
+    category: Number(data[2] ?? 0),
+    evidenceCid: String(data[3] ?? ""),
+    evidenceDigest: String(data[4] ?? "0x0") as `0x${string}`,
+    reporter: String(data[5] ?? ZERO_ADDRESS) as `0x${string}`,
+    createdAt: Number(data[6] ?? 0),
+    updatedAt: Number(data[7] ?? 0),
+    status: Number(data[8] ?? 0),
+    reviewerCount: Number(data[9] ?? 0),
+    voteCount: Number(data[10] ?? 0),
+    approvalCount: Number(data[11] ?? 0),
+    rejectCount: Number(data[12] ?? 0),
+    escalationCount: Number(data[13] ?? 0),
+    averageSeverityScore: Number(data[14] ?? 0),
+  };
+}
+
+export function contractsConfigured() {
+  return Object.values(CONTRACTS).every((address) => address !== ZERO_ADDRESS);
+}

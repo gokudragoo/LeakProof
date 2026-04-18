@@ -1,42 +1,62 @@
-const PINATA_BASE_URL = 'https://api.pinata.cloud';
+const PUBLIC_GATEWAYS = [
+  "https://gateway.pinata.cloud/ipfs/",
+  "https://ipfs.io/ipfs/",
+  "https://cloudflare-ipfs.com/ipfs/",
+];
 
-export async function uploadToIPFS(file: File | Blob, jwt: string): Promise<string> {
+async function parsePinataResponse(response: Response) {
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || "Pinata request failed");
+  }
+
+  return response.json();
+}
+
+export async function uploadFileToIPFS(file: File | Blob, fileName?: string) {
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append("file", file, fileName);
 
-  const response = await fetch(`${PINATA_BASE_URL}/pinning/pinFileToIPFS`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-    },
+  const response = await fetch("/api/pinata", {
+    method: "POST",
     body: formData,
   });
 
-  if (!response.ok) {
-    throw new Error(`IPFS upload failed: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data.IpfsHash;
+  const data = await parsePinataResponse(response);
+  return String(data.IpfsHash);
 }
 
-export async function fetchFromIPFS(cid: string): Promise<Response> {
-  const gateways = [
-    'https://gateway.pinata.cloud/ipfs/',
-    'https://ipfs.io/ipfs/',
-    'https://cloudflare-ipfs.com/ipfs/',
-  ];
+export async function uploadJsonToIPFS(payload: unknown) {
+  const response = await fetch("/api/pinata", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
 
-  for (const gateway of gateways) {
+  const data = await parsePinataResponse(response);
+  return String(data.IpfsHash);
+}
+
+export function getIpfsUrl(cid: string) {
+  return cid ? `${PUBLIC_GATEWAYS[0]}${cid}` : "";
+}
+
+export async function fetchJsonFromIPFS<T>(cid: string): Promise<T> {
+  for (const gateway of PUBLIC_GATEWAYS) {
     try {
-      const response = await fetch(`${gateway}${cid}`);
+      const response = await fetch(`${gateway}${cid}`, {
+        cache: "no-store",
+      });
+
       if (response.ok) {
-        return response;
+        return (await response.json()) as T;
       }
     } catch {
-      continue;
+      // Try the next public gateway.
     }
   }
 
-  throw new Error('Failed to fetch from IPFS');
+  throw new Error("Unable to load IPFS content");
 }

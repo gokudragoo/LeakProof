@@ -1,73 +1,65 @@
-export interface Case {
+export interface CaseRecord {
   id: number;
-  encryptedTitle: string;
-  encryptedDescription: string;
-  encryptedSeverity: number;
+  reportCid: string;
+  reportDigest: `0x${string}`;
   category: number;
-  evidenceCID: string;
-  reporter: string;
+  evidenceCid: string;
+  evidenceDigest: `0x${string}`;
+  reporter: `0x${string}`;
   createdAt: number;
   updatedAt: number;
   status: number;
+  reviewerCount: number;
+  voteCount: number;
+  approvalCount: number;
+  rejectCount: number;
+  escalationCount: number;
+  averageSeverityScore: number;
 }
 
-export interface ReviewerAssignment {
-  reviewer: string;
-  caseId: number;
-  hasVoted: boolean;
-  encryptedVote: string;
-  encryptedScore: string;
-  encryptedNotes: string;
-  timestamp: number;
-}
-
-export interface DisclosurePermission {
-  grantee: string;
-  caseId: number;
-  level: number;
-  used: boolean;
-  grantedAt: number;
-  expiresAt: number;
-}
-
-export type CaseStatus =
-  | 'Submitted'
-  | 'UnderReview'
-  | 'NeedsEvidence'
-  | 'Escalated'
-  | 'Verified'
-  | 'Closed'
-  | 'Rejected';
-
-export type CaseCategory =
-  | 'Fraud'
-  | 'Harassment'
-  | 'Corruption'
-  | 'PolicyViolation'
-  | 'FinancialMisconduct'
-  | 'ComplianceBreach'
-  | 'Other';
-
-export type PermissionLevel =
-  | 'None'
-  | 'OutcomeOnly'
-  | 'SummaryOnly'
-  | 'FullReport'
-  | 'IdentityReveal';
-
-export type UserRole = 'admin' | 'reviewer' | 'reporter' | 'guest';
-
-export interface EncryptedReport {
+export interface ReportPayload {
   title: string;
   description: string;
   severity: number;
   category: number;
-  evidenceCID: string;
+  createdAt: string;
+  reporterAddress: string;
+  evidenceName?: string;
+}
+
+export interface VoteRecord {
+  reviewer: `0x${string}`;
+  hasVoted: boolean;
+  recommendation: number;
+  severityScore: number;
+}
+
+export interface VoteSummary {
+  approvals: number;
+  rejects: number;
+  escalations: number;
+  votes: number;
+}
+
+export interface DisclosurePermission {
+  caseId: number;
+  grantee: `0x${string}`;
+  level: number;
+}
+
+export interface CreateCaseInput {
+  reportCid: string;
+  reportDigest: `0x${string}`;
+  category: number;
+  evidenceCid?: string;
+  evidenceDigest?: `0x${string}`;
 }
 
 export interface VoteSubmission {
   caseId: number;
-  encryptedVote: string;
-  encryptedScore: string;
-  encryptedNotes: string;
+  recommendation: number;
+  severityScore: number;
+  notes: string;
 }
+
+export type UserRole = "admin" | "reviewer" | "reporter" | "guest";
