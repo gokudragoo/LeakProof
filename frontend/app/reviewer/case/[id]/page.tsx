@@ -1,139 +1,278 @@
 'use client';
 
-import { useState } from 'react';
-import { useAccount } from 'wagmi';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useSubmitVote, useIsReviewerAssigned } from '@/hooks/useReviewerHub';
-import { useCaseStatus } from '@/hooks/useCaseRegistry';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount } from 'wagmi';
+import {
+  getCaseCategoryLabel,
+  getCaseStatusLabel,
+  getRecommendationLabel,
+} from '@/lib/contracts';
+import { fetchJsonFromIPFS, getIpfsUrl } from '@/lib/pinata';
+import { formatTimestamp } from '@/lib/report-utils';
+import { useCase } from '@/hooks/useCaseRegistry';
+import {
+  useIsReviewerAssigned,
+  useReviewerVotes,
+  useSubmitVote,
+  useVoteSummary,
+} from '@/hooks/useReviewerHub';
+import type { ReportPayload } from '@/types';
+
+const recommendationOptions = [
+  { label: 'Approve', value: 1, tone: 'emerald' },
+  { label: 'Reject', value: 2, tone: 'rose' },
+  { label: 'Escalate', value: 3, tone: 'amber' },
+] as const;
 
 export default function ReviewerCaseDetail({ params }: { params: { id: string } }) {
-  const caseId = parseInt(params.id);
+  const caseId = Number(params.id);
   const { isConnected, address } = useAccount();
-  const { submitVote, isPending, isSuccess } = useSubmitVote();
-  const { isAssigned, isLoading: checkingAssignment } = useIsReviewerAssigned(caseId, address);
-  const { status } = useCaseStatus(caseId);
+  const { caseData, isLoading: caseLoading, refetch: refetchCase } = useCase(caseId);
+  const { isAssigned, isLoading: assignmentLoading, refetch: refetchAssignment } = useIsReviewerAssigned(caseId, address);
+  const { votes, refetch: refetchVotes } = useReviewerVotes(caseId);
+  const { summary, refetch: refetchSummary } = useVoteSummary(caseId);
+  const { submitVote, isPending } = useSubmitVote();
 
-  const [voteData, setVoteData] = useState({
-    recommendation: 'approve',
-    severityScore: 3,
-    notes: '',
-  });
-  const [submitted, setSubmitted] = useState(false);
+  const [payload, setPayload] = useState<ReportPayload | null>(null);
+  const [recommendation, setRecommendation] = useState(1);
+  const [severityScore, setSeverityScore] = useState(3);
+  const [notes, setNotes] = useState('');
+  const [statusLine, setStatusLine] = useState('');
+  const [error, setError] = useState('');
 
-  const handleSubmitVote = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!address) return;
+  useEffect(() => {
+    let active = true;
 
-    submitVote({
-      caseId: BigInt(caseId),
-      encryptedVote: `0x${Buffer.from(voteData.recommendation).toString('hex').padEnd(64, '0')}` as `0x${string}`,
-      encryptedScore: `0x${Buffer.from(voteData.severityScore.toString()).toString('hex').padEnd(64, '0')}` as `0x${string}`,
-      encryptedNotes: `0x${Buffer.from(voteData.notes).toString('hex').padEnd(64, '0')}` as `0x${string}`,
-    });
+    async function loadPayload() {
+      if (!caseData?.reportCid) {
+        setPayload(null);
+        return;
+      }
 
-    setSubmitted(true);
+      try {
+        const report = await fetchJsonFromIPFS<ReportPayload>(caseData.reportCid);
+        if (active) {
+          setPayload(report);
+        }
+      } catch {
+        if (active) {
+          setPayload(null);
+        }
+      }
+    }
+
+    void loadPayload();
+
+    return () => {
+      active = false;
+    };
+  }, [caseData?.reportCid]);
+
+  const myVote = votes.find((item) => item.reviewer.toLowerCase() === address?.toLowerCase());
+
+  const handleSubmitVote = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+
+    try {
+      setStatusLine('Submitting vote on-chain...');
+      await submitVote({
+        caseId,
+        recommendation,
+        severityScore,
+        notes: notes.trim(),
+      });
+
+      await Promise.all([refetchVotes(), refetchSummary(), refetchCase(), refetchAssignment()]);
+      setStatusLine('Vote confirmed on-chain.');
+    } catch (submissionError) {
+      setStatusLine('');
+      setError(submissionError instanceof Error ? submissionError.message : 'Unable to submit the vote.');
+    }
   };
+
+  if (!Number.isFinite(caseId) || caseId <= 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 text-center">
+        <div className="glass rounded-3xl p-8 border border-white/10">
+          Invalid case ID.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen relative">
       <header className="border-b border-white/5 glass-strong sticky top-0 z-50 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/reviewer/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-              <span className="text-white">&#128274;</span>
-            </div>
-            <span className="text-xl font-bold gradient-text">LeakProof X</span>
+        <div className="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
+          <Link href="/reviewer/dashboard" className="text-xl font-bold gradient-text">
+            LeakProof X
           </Link>
           <ConnectButton />
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-8 relative z-10">
-        {submitted || isSuccess ? (
-          <div className="text-center py-20 slide-up">
-            <div className="w-32 h-32 rounded-3xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mx-auto mb-8 pulse-glow">
-              <svg className="w-16 h-16 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h1 className="text-4xl font-bold mb-4 gradient-text">Vote Submitted!</h1>
-            <p className="text-gray-400 mb-8">Your encrypted vote has been recorded on-chain.</p>
-            <Link href="/reviewer/dashboard" className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white font-semibold transition-all hover-lift">
-              Back to Dashboard
-            </Link>
+      <main className="max-w-5xl mx-auto px-4 py-10 relative z-10">
+        <Link href="/reviewer/dashboard" className="text-sm text-gray-400 hover:text-white transition-colors">
+          Back to reviewer dashboard
+        </Link>
+
+        <div className="mt-4 mb-8">
+          <h1 className="text-4xl font-bold">Case #{caseId}</h1>
+          <p className="text-gray-400 mt-2">Inspect the case payload and submit one recommendation.</p>
+        </div>
+
+        {!isConnected ? (
+          <div className="glass rounded-3xl p-8 border border-white/10 text-center">
+            Connect the assigned reviewer wallet to continue.
+          </div>
+        ) : assignmentLoading || caseLoading ? (
+          <div className="glass rounded-3xl p-8 border border-white/10 text-gray-400">
+            Loading case details...
+          </div>
+        ) : !isAssigned || !caseData ? (
+          <div className="glass rounded-3xl p-8 border border-red-500/20 bg-red-500/10 text-red-300">
+            This wallet is not assigned to review case #{caseId}.
           </div>
         ) : (
-          <>
-            <Link href="/reviewer/dashboard" className="text-gray-400 hover:text-white flex items-center gap-2 mb-6 transition-colors slide-up">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-              Back to Dashboard
-            </Link>
+          <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-6">
+            <div className="space-y-6">
+              <div className="glass rounded-3xl p-6 border border-white/10">
+                <div className="flex flex-wrap gap-3 text-sm">
+                  <span className="px-3 py-2 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-300">
+                    {getCaseCategoryLabel(caseData.category)}
+                  </span>
+                  <span className="px-3 py-2 rounded-full bg-white/5 border border-white/10 text-gray-300">
+                    {getCaseStatusLabel(caseData.status)}
+                  </span>
+                </div>
 
-            <div className="mb-8 slide-up">
-              <h1 className="text-3xl md:text-4xl font-bold mb-2">
-                Review Case <span className="gradient-text">#{caseId}</span>
-              </h1>
-              <p className="text-gray-400">Submit your confidential evaluation</p>
+                <h2 className="text-2xl font-semibold mt-5">
+                  {payload?.title || 'Report payload unavailable'}
+                </h2>
+                <p className="text-gray-400 mt-4 whitespace-pre-wrap">
+                  {payload?.description || 'The report body could not be loaded from IPFS.'}
+                </p>
+
+                <div className="grid sm:grid-cols-2 gap-4 mt-6 text-sm text-gray-400">
+                  <div>Created: {formatTimestamp(caseData.createdAt)}</div>
+                  <div>Updated: {formatTimestamp(caseData.updatedAt)}</div>
+                  <div>Reporter: {caseData.reporter}</div>
+                  <div>Severity: {payload?.severity ?? caseData.averageSeverityScore || 'Pending'}</div>
+                </div>
+
+                {caseData.evidenceCid ? (
+                  <div className="mt-6">
+                    <a
+                      href={getIpfsUrl(caseData.evidenceCid)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-sky-300 hover:bg-white/10"
+                    >
+                      Open evidence file
+                    </a>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="glass rounded-3xl p-6 border border-white/10">
+                <h2 className="text-2xl font-semibold">Current tally</h2>
+                <div className="grid sm:grid-cols-4 gap-4 mt-5 text-sm">
+                  <div className="rounded-2xl bg-slate-950/50 border border-white/10 p-4">
+                    <div className="text-gray-500">Approvals</div>
+                    <div className="text-2xl font-bold text-emerald-300 mt-2">{summary.approvals}</div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/50 border border-white/10 p-4">
+                    <div className="text-gray-500">Rejects</div>
+                    <div className="text-2xl font-bold text-rose-300 mt-2">{summary.rejects}</div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/50 border border-white/10 p-4">
+                    <div className="text-gray-500">Escalations</div>
+                    <div className="text-2xl font-bold text-amber-300 mt-2">{summary.escalations}</div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/50 border border-white/10 p-4">
+                    <div className="text-gray-500">Total votes</div>
+                    <div className="text-2xl font-bold text-sky-300 mt-2">{summary.votes}</div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {checkingAssignment ? (
-              <div className="glass rounded-2xl p-8 text-center">
-                <div className="w-12 h-12 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-gray-400 mt-4">Checking assignment...</p>
-              </div>
-            ) : !isAssigned ? (
-              <div className="glass rounded-2xl p-8 text-center slide-up animate-delay-100">
-                <div className="w-20 h-20 rounded-2xl bg-red-500/20 flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <div className="glass rounded-3xl p-6 border border-white/10">
+              <h2 className="text-2xl font-semibold">Submit your vote</h2>
+              {myVote?.hasVoted ? (
+                <div className="mt-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-5 text-sm text-emerald-200">
+                  Vote already recorded: {getRecommendationLabel(myVote.recommendation)} with severity {myVote.severityScore}.
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Not Assigned</h2>
-                <p className="text-gray-400">You are not assigned to review this case.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmitVote} className="space-y-6">
-                <div className="glass rounded-2xl p-6 slide-up animate-delay-100">
-                  <label className="block text-sm font-medium mb-4 text-gray-300">Recommendation</label>
-                  <div className="grid grid-cols-3 gap-4">
-                    {[
-                      { id: 'approve', label: 'Approve', color: 'emerald', icon: 'M5 13l4 4L19 7' },
-                      { id: 'reject', label: 'Reject', color: 'red', icon: 'M6 18L18 6M6 6l12 12' },
-                      { id: 'escalate', label: 'Escalate', color: 'amber', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
-                    ].map((rec) => (
-                      <button key={rec.id} type="button" onClick={() => setVoteData({ ...voteData, recommendation: rec.id })} className={`py-4 px-6 rounded-xl font-semibold transition-all flex flex-col items-center gap-2 ${voteData.recommendation === rec.id ? (rec.color === 'emerald' ? 'bg-gradient-to-br from-emerald-500 to-teal-500 text-white scale-105' : rec.color === 'red' ? 'bg-gradient-to-br from-red-500 to-rose-500 text-white scale-105' : 'bg-gradient-to-br from-amber-500 to-orange-500 text-black scale-105') : 'bg-dark-800 border border-gray-700 hover:border-purple-500'}`}>
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={rec.icon} /></svg>
-                        {rec.label}
-                      </button>
-                    ))}
+              ) : (
+                <form onSubmit={handleSubmitVote} className="space-y-5 mt-5">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-3">Recommendation</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {recommendationOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setRecommendation(option.value)}
+                          className={`px-3 py-4 rounded-2xl border transition-colors ${recommendation === option.value ? option.tone === 'emerald' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300' : option.tone === 'rose' ? 'border-rose-500 bg-rose-500/10 text-rose-300' : 'border-amber-500 bg-amber-500/10 text-amber-300' : 'border-white/10 bg-slate-950/50'}`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                <div className="glass rounded-2xl p-6 slide-up animate-delay-150">
-                  <label className="block text-sm font-medium mb-4 text-gray-300">Severity Score (1-5)</label>
-                  <div className="flex gap-3">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <button key={level} type="button" onClick={() => setVoteData({ ...voteData, severityScore: level })} className={`w-14 h-14 rounded-xl font-bold transition-all hover-lift ${voteData.severityScore === level ? (level === 1 ? 'bg-green-500 text-white scale-110' : level === 2 ? 'bg-lime-500 text-white scale-110' : level === 3 ? 'bg-yellow-500 text-black scale-110' : level === 4 ? 'bg-orange-500 text-white scale-110' : 'bg-red-500 text-white scale-110') : 'bg-dark-800 border border-gray-700 hover:border-purple-500'}`}>
-                        {level}
-                      </button>
-                    ))}
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-3">Severity score</label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setSeverityScore(value)}
+                          className={`w-11 h-11 rounded-2xl border ${severityScore === value ? 'border-fuchsia-500 bg-fuchsia-500/10 text-fuchsia-300' : 'border-white/10 bg-slate-950/50'}`}
+                        >
+                          {value}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                <div className="glass rounded-2xl p-6 slide-up animate-delay-200">
-                  <label className="block text-sm font-medium mb-3 text-gray-300">Confidential Notes (Optional)</label>
-                  <textarea value={voteData.notes} onChange={(e) => setVoteData({ ...voteData, notes: e.target.value })} className="w-full px-4 py-4 rounded-xl bg-dark-800 border border-gray-700 focus:border-purple-500 outline-none min-h-[150px] resize-none" placeholder="Add any additional notes about this case..." />
-                </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Notes</label>
+                    <textarea
+                      value={notes}
+                      onChange={(event) => setNotes(event.target.value)}
+                      placeholder="Optional reviewer notes"
+                      className="w-full min-h-[140px] px-4 py-4 rounded-2xl bg-slate-950/60 border border-white/10 focus:border-fuchsia-500 outline-none resize-none"
+                    />
+                  </div>
 
-                <button type="submit" disabled={isPending} className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold transition-all flex items-center justify-center gap-2 button-glow">
-                  {isPending ? (
-                    <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Encrypting Vote...</>
-                  ) : (
-                    <>&#128274; Submit Encrypted Vote</>
-                  )}
-                </button>
-              </form>
-            )}
-          </>
+                  {statusLine ? (
+                    <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-sky-200 text-sm">
+                      {statusLine}
+                    </div>
+                  ) : null}
+
+                  {error ? (
+                    <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-red-300 text-sm">
+                      {error}
+                    </div>
+                  ) : null}
+
+                  <button
+                    type="submit"
+                    disabled={isPending}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white font-semibold disabled:from-gray-600 disabled:to-gray-600"
+                  >
+                    {isPending ? 'Waiting for wallet...' : 'Submit vote'}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
         )}
       </main>
     </div>

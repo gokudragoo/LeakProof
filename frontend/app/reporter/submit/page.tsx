@@ -1,311 +1,238 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { useAccount } from 'wagmi';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useState } from 'react';
 import Link from 'next/link';
-import { useCreateCase } from '@/hooks/useCaseRegistry';
-import { uploadToIPFS } from '@/lib/pinata';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount } from 'wagmi';
 import { CASE_CATEGORY } from '@/lib/contracts';
+import { uploadFileToIPFS, uploadJsonToIPFS } from '@/lib/pinata';
+import { EMPTY_DIGEST, sha256File, sha256Text, shortAddress } from '@/lib/report-utils';
+import { useCreateCase } from '@/hooks/useCaseRegistry';
+import type { ReportPayload } from '@/types';
 
 export default function SubmitReport() {
   const { isConnected, address } = useAccount();
-  const { createCase, isPending, isSuccess, txHash } = useCreateCase();
-  const [mounted, setMounted] = useState(false);
+  const { createCase, isPending, txHash } = useCreateCase();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
-
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    severity: 3,
-    category: 0,
-  });
-  const [files, setFiles] = useState<File[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState('');
-  const [caseId, setCaseId] = useState<number | null>(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [severity, setSeverity] = useState(3);
+  const [category, setCategory] = useState(0);
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [statusLine, setStatusLine] = useState('');
   const [error, setError] = useState('');
-  const [currentStep, setCurrentStep] = useState(1);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [submittedCaseId, setSubmittedCaseId] = useState<number | null>(null);
+  const [submittedHash, setSubmittedHash] = useState<`0x${string}` | null>(null);
 
-  const handleFilesSelected = useCallback((selectedFiles: FileList | null) => {
-    if (!selectedFiles) return;
-    const newFiles = Array.from(selectedFiles);
-    setFiles(prev => [...prev, ...newFiles]);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    handleFilesSelected(e.dataTransfer.files);
-  }, [handleFilesSelected]);
-
-  const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const hashCode = (str: string): bigint => {
-    let hash = 0n;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5n) - hash + BigInt(char);
-      hash = hash & hash;
-    }
-    return BigInt(Math.abs(Number(hash)));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setSeverity(3);
+    setCategory(0);
+    setEvidenceFile(null);
+    setStatusLine('');
     setError('');
-    setUploadProgress('');
+    setSubmittedCaseId(null);
+    setSubmittedHash(null);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setSubmittedCaseId(null);
 
     if (!address) {
-      setError('Please connect your wallet first');
+      setError('Connect your wallet before submitting a report.');
       return;
     }
 
-    if (!formData.title.trim() || !formData.description.trim()) {
-      setError('Please fill in all required fields');
+    if (!title.trim() || !description.trim()) {
+      setError('Title and description are required.');
+      return;
+    }
+
+    if (evidenceFile && evidenceFile.size > 10 * 1024 * 1024) {
+      setError('Evidence files must be 10MB or smaller.');
       return;
     }
 
     try {
-      setCurrentStep(2);
-      setUploadProgress('Encrypting with FHE...');
+      const reportPayload: ReportPayload = {
+        title: title.trim(),
+        description: description.trim(),
+        severity,
+        category,
+        createdAt: new Date().toISOString(),
+        reporterAddress: address,
+        evidenceName: evidenceFile?.name,
+      };
 
-      const titleHash = hashCode(formData.title);
-      const descHash = hashCode(formData.description);
+      setStatusLine('Uploading report payload to IPFS...');
+      const reportCid = await uploadJsonToIPFS(reportPayload);
+      const reportDigest = await sha256Text(JSON.stringify(reportPayload));
 
-      setCurrentStep(3);
-      setUploadProgress('Processing evidence...');
+      let evidenceCid = '';
+      let evidenceDigest = EMPTY_DIGEST;
 
-      let evidenceCID = '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`;
-
-      if (files.length > 0) {
-        setUploadProgress('Encrypting evidence to IPFS...');
-        setIsUploading(true);
-
-        const jwt = process.env.NEXT_PUBLIC_PINATA_JWT || '';
-        if (jwt) {
-          const cid = await uploadToIPFS(files[0], jwt);
-          evidenceCID = cid as `0x${string}`;
-        }
-
-        setIsUploading(false);
-        setUploadProgress('');
+      if (evidenceFile) {
+        setStatusLine('Uploading evidence to IPFS...');
+        evidenceCid = await uploadFileToIPFS(evidenceFile, evidenceFile.name);
+        evidenceDigest = await sha256File(evidenceFile);
       }
 
-      setCurrentStep(4);
-      setUploadProgress('Submitting to blockchain...');
-
-      createCase({
-        encryptedTitle: `0x${titleHash.toString(16).padStart(64, '0')}` as `0x${string}`,
-        encryptedDescription: `0x${descHash.toString(16).padStart(64, '0')}` as `0x${string}`,
-        encryptedSeverity: BigInt(formData.severity),
-        category: BigInt(formData.category),
-        evidenceCID: evidenceCID,
+      setStatusLine('Submitting the case on-chain...');
+      const result = await createCase({
+        reportCid,
+        reportDigest,
+        category,
+        evidenceCid,
+        evidenceDigest,
       });
 
-      setCaseId(Date.now() % 10000);
-      setShowSuccess(true);
-    } catch (err: any) {
-      setIsUploading(false);
-      setCurrentStep(1);
-      setError(`Failed: ${err.message}`);
+      setSubmittedCaseId(result.caseId);
+      setSubmittedHash(result.hash);
+      setStatusLine('Report confirmed on-chain.');
+    } catch (submissionError) {
+      setError(submissionError instanceof Error ? submissionError.message : 'Unable to submit the report.');
+      setStatusLine('');
     }
   };
-
-  if (!isConnected) {
-    return (
-      <div className="min-h-screen relative">
-        <header className="border-b border-white/5 glass-strong sticky top-0 z-50 backdrop-blur-xl">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-cyan-500 flex items-center justify-center">
-                <span className="text-white">&#128274;</span>
-              </div>
-              <span className="text-xl font-bold gradient-text">LeakProof X</span>
-            </Link>
-            <ConnectButton />
-          </div>
-        </header>
-
-        <main className="max-w-2xl mx-auto px-4 py-20 relative z-10">
-          <div className="text-center slide-up">
-            <div className="w-32 h-32 rounded-3xl bg-gradient-to-br from-primary-500/20 to-cyan-500/20 flex items-center justify-center mx-auto mb-8 pulse-glow">
-              <span className="text-6xl">&#128274;</span>
-            </div>
-            <h1 className="text-4xl font-bold mb-4 gradient-text">Connect Your Wallet</h1>
-            <p className="text-gray-400 mb-8 max-w-md mx-auto">
-              Connect your wallet to submit a confidential report with FHE encryption.
-            </p>
-            <ConnectButton />
-          </div>
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen relative">
       <header className="border-b border-white/5 glass-strong sticky top-0 z-50 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/reporter/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-cyan-500 flex items-center justify-center">
-              <span className="text-white">&#128274;</span>
-            </div>
-            <span className="text-xl font-bold gradient-text">LeakProof X</span>
+        <div className="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
+          <Link href="/" className="text-xl font-bold gradient-text">
+            LeakProof X
           </Link>
-          <div className="flex items-center gap-3">
-            <span className="px-3 py-1.5 rounded-full bg-blue-500/20 text-blue-400 text-sm font-medium border border-blue-500/30">Reporter</span>
-            <ConnectButton />
-          </div>
+          <ConnectButton />
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8 relative z-10">
-        {showSuccess ? (
-          <div className="text-center py-20 slide-up">
-            <div className="w-32 h-32 rounded-3xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mx-auto mb-8 pulse-glow">
-              <span className="text-6xl">&#10003;</span>
+      <main className="max-w-3xl mx-auto px-4 py-10 relative z-10">
+        <div className="mb-8">
+          <Link href="/reporter/dashboard" className="text-sm text-gray-400 hover:text-white transition-colors">
+            Back to reporter dashboard
+          </Link>
+          <h1 className="text-4xl font-bold mt-3">Submit a report</h1>
+          <p className="text-gray-400 mt-2 max-w-2xl">
+            The report body is uploaded to IPFS, hashed in the browser, and the CID plus digest are
+            recorded on-chain. You will only see success after the transaction is confirmed.
+          </p>
+        </div>
+
+        {!isConnected ? (
+          <div className="glass rounded-3xl p-8 border border-white/10 text-center">
+            <h2 className="text-2xl font-semibold">Connect your wallet to continue</h2>
+            <p className="text-gray-400 mt-3">Reporter address is used as the on-chain owner of the case.</p>
+          </div>
+        ) : null}
+
+        {submittedCaseId ? (
+          <div className="glass rounded-3xl p-8 border border-emerald-500/20">
+            <div className="text-sm uppercase tracking-[0.25em] text-emerald-300">Confirmed</div>
+            <h2 className="text-3xl font-bold mt-3">Case #{submittedCaseId} is live</h2>
+            <p className="text-gray-400 mt-3">
+              Reporter address: <span className="text-white">{shortAddress(address)}</span>
+            </p>
+            <div className="mt-6 rounded-2xl bg-slate-950/50 border border-white/10 p-4 text-sm text-gray-400">
+              <div>Transaction hash</div>
+              <div className="font-mono text-sky-300 break-all mt-2">{submittedHash ?? txHash}</div>
             </div>
-            <h1 className="text-4xl font-bold mb-4 gradient-text">Report Submitted!</h1>
-            <p className="text-gray-400 mb-2">Your encrypted report has been submitted to Ethereum blockchain.</p>
-            <p className="text-sm text-gray-500 font-mono mb-8">Case ID: #{caseId}</p>
-            {txHash && (
-              <div className="mb-8 p-4 rounded-xl glass">
-                <p className="text-xs text-gray-500 mb-1">Transaction Hash</p>
-                <p className="text-sm font-mono text-primary-400 break-all">{txHash}</p>
-              </div>
-            )}
-            <div className="flex gap-4 justify-center">
-              <Link href="/reporter/dashboard" className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-500 to-cyan-500 hover:from-primary-400 hover:to-cyan-400 text-white font-semibold">View Dashboard</Link>
-              <button onClick={() => { setCaseId(null); setShowSuccess(false); setCurrentStep(1); setFormData({ title: '', description: '', severity: 3, category: 0 }); setFiles([]); }} className="px-6 py-3 rounded-xl glass hover:bg-dark-700 text-gray-300 font-medium">Submit Another</button>
+            <div className="flex flex-wrap gap-3 mt-6">
+              <Link href="/reporter/dashboard" className="px-5 py-3 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 text-white font-semibold">
+                View my cases
+              </Link>
+              <button type="button" onClick={resetForm} className="px-5 py-3 rounded-2xl glass">
+                Submit another case
+              </button>
             </div>
           </div>
         ) : (
-          <>
-            <div className="mb-8 slide-up">
-              <Link href="/reporter/dashboard" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                Back to Dashboard
-              </Link>
-              <h1 className="text-3xl md:text-4xl font-bold mb-2">Submit Confidential Report</h1>
-              <p className="text-gray-400">All data is encrypted before being stored on-chain</p>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="glass rounded-3xl p-6 border border-white/10">
+              <label className="block text-sm text-gray-400 mb-2">Title</label>
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Short summary of the issue"
+                className="w-full px-4 py-4 rounded-2xl bg-slate-950/60 border border-white/10 focus:border-sky-500 outline-none"
+              />
             </div>
 
-            <div className="mb-8 slide-up animate-delay-100">
-              <div className="flex items-center justify-between mb-4">
-                {[{ step: 1, label: 'Details' }, { step: 2, label: 'Encrypt' }, { step: 3, label: 'Upload' }, { step: 4, label: 'Chain' }].map((s, i) => (
-                  <div key={s.step} className="flex items-center">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold transition-all duration-300 ${currentStep >= s.step ? currentStep === s.step ? 'bg-gradient-to-br from-primary-500 to-cyan-500 text-white ring-4 ring-primary-500/30' : 'bg-gradient-to-br from-emerald-500 to-teal-500 text-white' : 'bg-dark-700 text-gray-500'}`}>
-                      {currentStep > s.step ? '&#10003;' : s.step}
-                    </div>
-                    {i < 3 && <div className={`w-12 md:w-20 h-1 mx-2 rounded transition-all duration-300 ${currentStep > s.step ? 'bg-primary-500' : 'bg-dark-700'}`} />}
-                  </div>
+            <div className="glass rounded-3xl p-6 border border-white/10">
+              <label className="block text-sm text-gray-400 mb-3">Category</label>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {CASE_CATEGORY.map((label, index) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setCategory(index)}
+                    className={`px-4 py-3 rounded-2xl border transition-colors ${category === index ? 'border-sky-500 bg-sky-500/10 text-sky-300' : 'border-white/10 bg-slate-950/40 hover:border-sky-500/40'}`}
+                  >
+                    {label}
+                  </button>
                 ))}
               </div>
             </div>
 
-            {error && (
-              <div className="mb-6 p-4 rounded-xl bg-red-500/20 border border-red-500/30 text-red-400 flex items-center gap-3 slide-up">
-                <span className="text-xl">&#9888;</span>
+            <div className="glass rounded-3xl p-6 border border-white/10">
+              <label className="block text-sm text-gray-400 mb-2">Description</label>
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Describe what happened, who was involved, and why it matters."
+                className="w-full min-h-[220px] px-4 py-4 rounded-2xl bg-slate-950/60 border border-white/10 focus:border-sky-500 outline-none resize-none"
+              />
+            </div>
+
+            <div className="glass rounded-3xl p-6 border border-white/10">
+              <label className="block text-sm text-gray-400 mb-3">Severity</label>
+              <div className="flex gap-3">
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => setSeverity(level)}
+                    className={`w-12 h-12 rounded-2xl font-semibold border transition-transform ${severity === level ? 'border-sky-500 bg-sky-500/10 text-sky-300 scale-105' : 'border-white/10 bg-slate-950/40'}`}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="glass rounded-3xl p-6 border border-white/10">
+              <label className="block text-sm text-gray-400 mb-2">Evidence file (optional)</label>
+              <input
+                type="file"
+                onChange={(event) => setEvidenceFile(event.target.files?.[0] ?? null)}
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt"
+                className="w-full px-4 py-4 rounded-2xl bg-slate-950/60 border border-white/10"
+              />
+              <p className="text-xs text-gray-500 mt-3">Supported size up to 10MB. CID is stored on-chain as a string.</p>
+            </div>
+
+            {statusLine ? (
+              <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-sky-200 text-sm">
+                {statusLine}
+              </div>
+            ) : null}
+
+            {error ? (
+              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-red-300 text-sm">
                 {error}
               </div>
-            )}
+            ) : null}
 
-            {uploadProgress && (
-              <div className="mb-6 p-4 rounded-xl bg-primary-500/20 border border-primary-500/30 text-primary-400 flex items-center gap-3 slide-up">
-                <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                {uploadProgress}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="glass rounded-2xl p-6 slide-up animate-delay-100">
-                <label className="block text-sm font-medium mb-3 text-gray-300">Report Title *</label>
-                <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full px-4 py-4 rounded-xl bg-dark-800 border border-gray-700 focus:border-primary-500 outline-none" placeholder="Brief summary of the incident" required />
-              </div>
-
-              <div className="glass rounded-2xl p-6 slide-up animate-delay-150">
-                <label className="block text-sm font-medium mb-3 text-gray-300">Category *</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {Object.entries(CASE_CATEGORY).filter(([k]) => !isNaN(Number(k))).map(([key, label]) => (
-                    <button key={key} type="button" onClick={() => setFormData({ ...formData, category: parseInt(key) })} className={`p-3 rounded-xl text-sm font-medium transition-all ${formData.category === parseInt(key) ? 'bg-gradient-to-br from-primary-500 to-cyan-500 text-white' : 'bg-dark-800 border border-gray-700 hover:border-primary-500'}`}>
-                      {String(label)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="glass rounded-2xl p-6 slide-up animate-delay-200">
-                <label className="block text-sm font-medium mb-3 text-gray-300">Detailed Description *</label>
-                <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full px-4 py-4 rounded-xl bg-dark-800 border border-gray-700 focus:border-primary-500 outline-none min-h-[200px] resize-none" placeholder="Describe the incident in detail..." required />
-              </div>
-
-              <div className="glass rounded-2xl p-6 slide-up animate-delay-250">
-                <label className="block text-sm font-medium mb-4 text-gray-300">Severity Level</label>
-                <div className="flex gap-3">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <button key={level} type="button" onClick={() => setFormData({ ...formData, severity: level })} className={`w-14 h-14 rounded-xl font-bold text-lg transition-all hover-lift ${formData.severity === level ? (level === 1 ? 'bg-green-500 text-white scale-110' : level === 2 ? 'bg-lime-500 text-white scale-110' : level === 3 ? 'bg-yellow-500 text-black scale-110' : level === 4 ? 'bg-orange-500 text-white scale-110' : 'bg-red-500 text-white scale-110') : 'bg-dark-800 border border-gray-700 hover:border-primary-500'}`}>
-                      {level}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="glass rounded-2xl p-6 slide-up animate-delay-300">
-                <label className="block text-sm font-medium mb-4 text-gray-300">Evidence Files (Optional)</label>
-                <div onDragOver={(e) => e.preventDefault()} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center hover:border-primary-500/50 hover:bg-primary-500/5 transition-all cursor-pointer group">
-                  <input ref={fileInputRef} type="file" multiple onChange={(e) => handleFilesSelected(e.target.files)} className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt" />
-                  <svg className="w-12 h-12 mx-auto mb-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                  <p className="text-gray-400 mb-2">Drag & drop or <span className="text-primary-400 font-medium">click to browse</span></p>
-                  <p className="text-xs text-gray-500">PDF, DOC, JPG, PNG, TXT up to 10MB</p>
-                </div>
-                {files.length > 0 && (
-                  <div className="mt-4 space-y-3">
-                    {files.map((file, index) => (
-                      <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-dark-800/50 border border-gray-700 group">
-                        <div className="w-10 h-10 rounded-lg bg-primary-500/20 flex items-center justify-center">&#128206;</div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{file.name}</p>
-                          <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
-                        </div>
-                        <button onClick={() => removeFile(index)} className="p-2 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-primary-500/10 to-cyan-500/10 border border-primary-500/20 slide-up animate-delay-350">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-lg">&#128274;</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-primary-400 mb-1">Privacy Protection</h3>
-                    <p className="text-sm text-gray-400">Your report will be encrypted before submission. Only your anonymous wallet address is stored on-chain.</p>
-                  </div>
-                </div>
-              </div>
-
-              <button type="submit" disabled={isPending || isUploading} className="w-full py-4 rounded-xl bg-gradient-to-r from-primary-500 to-cyan-500 hover:from-primary-400 hover:to-cyan-400 disabled:from-gray-600 disabled:to-gray-600 text-white font-bold text-lg transition-all flex items-center justify-center gap-2 button-glow">
-                {isPending || isUploading ? (
-                  <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {isUploading ? 'Encrypting & Uploading...' : 'Submitting...'}</>
-                ) : (
-                  <>&#128274; Submit Encrypted Report</>
-                )}
-              </button>
-            </form>
-          </>
+            <button
+              type="submit"
+              disabled={!isConnected || isPending}
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 text-white font-semibold disabled:from-gray-600 disabled:to-gray-600"
+            >
+              {isPending ? 'Waiting for wallet...' : 'Submit report'}
+            </button>
+          </form>
         )}
       </main>
     </div>
