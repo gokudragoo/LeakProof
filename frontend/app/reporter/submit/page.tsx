@@ -11,6 +11,13 @@ import { CASE_CATEGORY } from '@/lib/contracts';
 export default function SubmitReport() {
   const { isConnected, address } = useAccount();
   const { createCase, isPending, isSuccess, txHash } = useCreateCase();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   const [formData, setFormData] = useState({
     title: '',
