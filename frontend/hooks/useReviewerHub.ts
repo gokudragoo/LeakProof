@@ -213,7 +213,7 @@ export function usePublishConsensus() {
         summary.approvals,
         summary.rejects,
         summary.escalations,
-        summary.averageSeverityScore,
+        summary.severityTotal,
         signatures,
       ],
     });
