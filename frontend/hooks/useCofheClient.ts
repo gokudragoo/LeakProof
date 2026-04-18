@@ -3,22 +3,78 @@
 import { useEffect, useState } from 'react';
 import { Encryptable, FheTypes } from '@cofhe/sdk';
 import { WagmiAdapter } from '@cofhe/sdk/adapters';
-import { sepolia as cofheSepolia } from '@cofhe/sdk/chains';
-import { createCofheClient, createCofheConfig } from '@cofhe/sdk/web';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { numberToHex } from 'viem';
 import type { EncryptedHandle, EncryptedUint8Input } from '@/types';
 
-const cofheClient = createCofheClient(
-  createCofheConfig({
-    environment: 'web',
-    supportedChains: [cofheSepolia],
-    mocks: {
-      decryptDelay: 0,
-      encryptDelay: [100, 100, 100, 300, 300],
-    },
-  })
-);
+type CofheClientLike = {
+  connect: (publicClient: unknown, walletClient: unknown) => Promise<void>;
+  disconnect: () => void;
+  encryptInputs: (inputs: unknown[]) => {
+    execute: () => Promise<
+      Array<{
+        ctHash: bigint;
+        securityZone: number;
+        utype: number;
+        signature: string;
+      }>
+    >;
+  };
+  decryptForView: (
+    ctHash: `0x${string}`,
+    utype: FheTypes
+  ) => {
+    withPermit: () => {
+      execute: () => Promise<bigint>;
+    };
+  };
+  decryptForTx: (ctHash: `0x${string}`) => {
+    withPermit: () => {
+      execute: () => Promise<{
+        ctHash: `0x${string}`;
+        decryptedValue: bigint;
+        signature: `0x${string}`;
+      }>;
+    };
+  };
+  permits: {
+    getOrCreateSelfPermit: (
+      chainId?: number,
+      account?: string,
+      options?: { issuer: string }
+    ) => Promise<unknown>;
+  };
+};
+
+let sharedClientPromise: Promise<CofheClientLike | null> | null = null;
+
+async function getBrowserClient() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  if (!sharedClientPromise) {
+    sharedClientPromise = (async () => {
+      const [{ createCofheClient, createCofheConfig }, { sepolia: cofheSepolia }] = await Promise.all([
+        import('@cofhe/sdk/web'),
+        import('@cofhe/sdk/chains'),
+      ]);
+
+      return createCofheClient(
+        createCofheConfig({
+          environment: 'web',
+          supportedChains: [cofheSepolia],
+          mocks: {
+            decryptDelay: 0,
+            encryptDelay: [100, 100, 100, 300, 300],
+          },
+        })
+      ) as CofheClientLike;
+    })();
+  }
+
+  return sharedClientPromise;
+}
 
 function normalizeHandle(ctHash: bigint | string, utype: number): EncryptedHandle {
   return {
@@ -34,22 +90,29 @@ export function useCofheClient() {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
+  const [client, setClient] = useState<CofheClientLike | null>(null);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     let active = true;
 
     async function connect() {
-      if (!publicClient || !walletClient) {
-        cofheClient.disconnect();
-        if (active) {
-          setIsReady(false);
-        }
+      const nextClient = await getBrowserClient();
+
+      if (!active) {
+        return;
+      }
+
+      setClient(nextClient);
+
+      if (!nextClient || !publicClient || !walletClient) {
+        nextClient?.disconnect();
+        setIsReady(false);
         return;
       }
 
       const adapted = await WagmiAdapter(walletClient, publicClient);
-      await cofheClient.connect(adapted.publicClient as never, adapted.walletClient as never);
+      await nextClient.connect(adapted.publicClient as never, adapted.walletClient as never);
 
       if (active) {
         setIsReady(true);
@@ -72,21 +135,21 @@ export function useCofheClient() {
       throw new Error('Connect your wallet before using confidential actions.');
     }
 
-    if (!isReady) {
+    if (!client || !isReady) {
       throw new Error('CoFHE client is still connecting to the wallet.');
     }
 
-    await cofheClient.permits.getOrCreateSelfPermit(undefined, undefined, {
+    await client.permits.getOrCreateSelfPermit(undefined, undefined, {
       issuer: address,
     });
   };
 
   const encryptUint8 = async (value: number): Promise<EncryptedUint8Input> => {
-    if (!isReady) {
+    if (!client || !isReady) {
       throw new Error('CoFHE client is not ready yet.');
     }
 
-    const [encrypted] = await cofheClient.encryptInputs([Encryptable.uint8(BigInt(value))]).execute();
+    const [encrypted] = await client.encryptInputs([Encryptable.uint8(BigInt(value))]).execute();
     return {
       ctHash: encrypted.ctHash,
       securityZone: encrypted.securityZone,
@@ -96,18 +159,26 @@ export function useCofheClient() {
   };
 
   const decryptHandle = async (handle: EncryptedHandle) => {
+    if (!client) {
+      throw new Error('CoFHE client is not ready yet.');
+    }
+
     await ensurePermit();
-    const result = await cofheClient.decryptForView(handle.ctHash, handle.utype as FheTypes).withPermit().execute();
+    const result = await client.decryptForView(handle.ctHash, handle.utype as FheTypes).withPermit().execute();
     return Number(result);
   };
 
   const decryptHandleForTx = async (handle: EncryptedHandle) => {
+    if (!client) {
+      throw new Error('CoFHE client is not ready yet.');
+    }
+
     await ensurePermit();
-    return cofheClient.decryptForTx(handle.ctHash).withPermit().execute();
+    return client.decryptForTx(handle.ctHash).withPermit().execute();
   };
 
   return {
-    client: cofheClient,
+    client,
     isReady,
     ensurePermit,
     encryptUint8,
