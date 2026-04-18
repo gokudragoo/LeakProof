@@ -21,6 +21,7 @@ contract ReviewerHub {
     mapping(uint256 => mapping(address => ReviewerAssignment)) public assignments;
     mapping(uint256 => address[]) public assignedReviewers;
     mapping(uint256 => uint256) public approvalThreshold;
+    mapping(address => uint256[]) public reviewerCases;
 
     event ReviewerAssigned(uint256 indexed caseId, address indexed reviewer, address indexed assigner);
     event VoteSubmitted(uint256 indexed caseId, address indexed reviewer);
@@ -34,9 +35,7 @@ contract ReviewerHub {
 
     function assignReviewer(uint256 _caseId, address _reviewer) external {
         require(_reviewer != address(0), "Invalid reviewer address");
-        require(accessControl.isAdmin(msg.sender) || accessControl.isAdmin(_reviewer),
-            "Must be admin to assign reviewers"
-        );
+        require(accessControl.isAdmin(msg.sender), "Must be admin to assign reviewers");
 
         require(_caseId > 0, "Invalid case ID");
 
@@ -51,6 +50,7 @@ contract ReviewerHub {
         });
 
         assignedReviewers[_caseId].push(_reviewer);
+        reviewerCases[_reviewer].push(_caseId);
 
         if (approvalThreshold[_caseId] == 0) {
             approvalThreshold[_caseId] = 2;
@@ -109,6 +109,10 @@ contract ReviewerHub {
         return (reviewerAddrs, voted, votes);
     }
 
+    function getAssignedCases(address _reviewer) external view returns (uint256[] memory) {
+        return reviewerCases[_reviewer];
+    }
+
     function checkConsensus(uint256 _caseId) internal {
         uint256 approveCount = 0;
         address[] storage reviewers = assignedReviewers[_caseId];
@@ -126,14 +130,13 @@ contract ReviewerHub {
         }
     }
 
-    function getAssignedCases(address _reviewer) external view returns (uint256[] memory) {
-        // This is a simplified view - in production would need indexed storage
-        return new uint256[](0);
-    }
-
     function setApprovalThreshold(uint256 _caseId, uint256 _threshold) external {
         require(accessControl.isAdmin(msg.sender), "Must be admin");
         require(_threshold > 0, "Threshold must be positive");
         approvalThreshold[_caseId] = _threshold;
+    }
+
+    function isReviewerAssigned(uint256 _caseId, address _reviewer) external view returns (bool) {
+        return assignments[_caseId][_reviewer].reviewer == _reviewer;
     }
 }
