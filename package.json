@@ -1,0 +1,16 @@
+{
+  "name": "leakproof",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "contracts"
+  ],
+  "scripts": {
+    "dev": "yarn workspace frontend dev",
+    "build": "yarn workspace frontend build",
+    "compile": "yarn workspace contracts compile",
+    "deploy": "yarn workspace contracts deploy",
+    "test": "yarn workspace contracts test"
+  }
+}

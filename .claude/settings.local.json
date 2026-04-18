@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:cofhe-docs.fhenix.zone)",
+      "WebSearch",
+      "Bash(yarn install *)",
+      "Bash(npm install *)",
+      "Bash(npx hardhat *)",
+      "Bash(npm run *)"
+    ]
+  }
+}
