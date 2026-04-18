@@ -136,9 +136,7 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
       <nav className="navbar-glass fixed top-0 left-0 right-0 z-50 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link href="/reviewer/dashboard" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center">
-              <span className="text-xl">🔒</span>
-            </div>
+            <Logo className="w-10 h-10" />
             <span className="text-xl font-bold gradient-text">LeakProof</span>
           </Link>
           <ConnectButton />
