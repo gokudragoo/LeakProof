@@ -243,5 +243,3 @@ export default function ReporterDashboard() {
     </div>
   );
 }
-
-import React from 'react';
