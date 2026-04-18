@@ -1,8 +1,15 @@
 "use client";
 
+import { transformEncryptedReturnTypes } from "@cofhe/abi";
 import { usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { CONTRACTS, REVIEWER_HUB_ABI } from "@/lib/contracts";
-import type { VoteRecord, VoteSubmission, VoteSummary } from "@/types";
+import type {
+  ConfidentialVoteSummary,
+  EncryptedHandle,
+  VoteRecord,
+  VoteSubmission,
+  VoteSummary,
+} from "@/types";
 
 export function useReviewerHub() {
   const publicClient = usePublicClient();
@@ -49,11 +56,11 @@ export function useReviewerHub() {
   };
 }
 
-export function useReviewerVotes(caseId: number) {
+export function useReviewerVoteStates(caseId: number) {
   const { data, isLoading, refetch } = useReadContract({
     address: CONTRACTS.REVIEWER_HUB,
     abi: REVIEWER_HUB_ABI,
-    functionName: "getReviewerVotes",
+    functionName: "getReviewerVoteStates",
     args: [BigInt(caseId)],
     query: {
       enabled: caseId > 0,
@@ -63,12 +70,36 @@ export function useReviewerVotes(caseId: number) {
   const reviewers = ((data?.[0] as `0x${string}`[] | undefined) ?? []).map((reviewer, index) => ({
     reviewer,
     hasVoted: Boolean(data?.[1]?.[index]),
-    recommendation: Number(data?.[2]?.[index] ?? 0),
-    severityScore: Number(data?.[3]?.[index] ?? 0),
   })) as VoteRecord[];
 
   return {
     votes: reviewers,
+    isLoading,
+    refetch,
+  };
+}
+
+export function useEncryptedVoteSummary(caseId: number) {
+  const { data, isLoading, refetch } = useReadContract({
+    address: CONTRACTS.REVIEWER_HUB,
+    abi: REVIEWER_HUB_ABI,
+    functionName: "getEncryptedVoteSummary",
+    args: [BigInt(caseId)],
+    query: {
+      enabled: caseId > 0,
+    },
+  });
+
+  const transformed = Array.isArray(data)
+    ? (transformEncryptedReturnTypes(
+        REVIEWER_HUB_ABI,
+        "getEncryptedVoteSummary",
+        data as readonly [`0x${string}`, `0x${string}`, `0x${string}`, `0x${string}`]
+      ) as readonly [EncryptedHandle, EncryptedHandle, EncryptedHandle, EncryptedHandle])
+    : null;
+
+  return {
+    handles: transformed,
     isLoading,
     refetch,
   };
@@ -126,6 +157,73 @@ export function useSubmitVote() {
 
   return {
     submitVote,
+    txHash,
+    isPending,
+    error,
+  };
+}
+
+export function useAuthorizeVoteSummaryAccess() {
+  const publicClient = usePublicClient();
+  const { writeContractAsync, data: txHash, isPending, error } = useWriteContract();
+
+  const authorize = async (caseId: number) => {
+    if (!publicClient) {
+      throw new Error("Wallet client unavailable");
+    }
+
+    const hash = await writeContractAsync({
+      address: CONTRACTS.REVIEWER_HUB,
+      abi: REVIEWER_HUB_ABI,
+      functionName: "authorizeVoteSummaryAccess",
+      args: [BigInt(caseId)],
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    return { hash, receipt };
+  };
+
+  return {
+    authorize,
+    txHash,
+    isPending,
+    error,
+  };
+}
+
+export function usePublishConsensus() {
+  const publicClient = usePublicClient();
+  const { writeContractAsync, data: txHash, isPending, error } = useWriteContract();
+
+  const publishConsensus = async (
+    caseId: number,
+    summary: ConfidentialVoteSummary,
+    signatures: [`0x${string}`, `0x${string}`, `0x${string}`, `0x${string}`]
+  ) => {
+    if (!publicClient) {
+      throw new Error("Wallet client unavailable");
+    }
+
+    const hash = await writeContractAsync({
+      address: CONTRACTS.REVIEWER_HUB,
+      abi: REVIEWER_HUB_ABI,
+      functionName: "publishConsensus",
+      args: [
+        BigInt(caseId),
+        summary.approvals,
+        summary.rejects,
+        summary.escalations,
+        summary.averageSeverityScore,
+        signatures,
+      ],
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    return { hash, receipt };
+  };
+
+  return {
+    publishConsensus,
     txHash,
     isPending,
     error,
