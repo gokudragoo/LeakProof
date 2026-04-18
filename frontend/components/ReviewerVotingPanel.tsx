@@ -2,10 +2,9 @@
 
 import { useState } from 'react';
 import { useSubmitVote } from '@/hooks/useReviewerHub';
-import { useCofheClient } from '@cofhe/react';
-import { Encryptable, FheTypes } from '@cofhe/sdk';
+import { useCofheEncrypt } from '@cofhe/react';
 import { usePublicClient, useWalletClient } from 'wagmi';
-import { bytesToHex } from '@/lib/cofhe';
+import { CASE_STATUS } from '@/lib/contracts';
 
 interface ReviewerVotingPanelProps {
   caseId: number;
@@ -13,10 +12,10 @@ interface ReviewerVotingPanelProps {
 }
 
 export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerVotingPanelProps) {
-  const cofheClient = useCofheClient();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { submitVote, isPending, isSuccess } = useSubmitVote();
+  const { mutateAsync: encryptVote, isPending: isEncrypting, reset } = useCofheEncrypt();
 
   const [vote, setVote] = useState({
     recommendation: 'approve',
@@ -28,37 +27,33 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!publicClient || !walletClient) {
+    if (!walletClient) {
       console.error('Wallet not connected');
       return;
     }
 
     try {
-      setEncryptionProgress('Connecting to CoFHE...');
-      await cofheClient.connect(publicClient, walletClient);
-
       setEncryptionProgress('Encrypting vote with FHE...');
       const voteValue = vote.recommendation === 'approve' ? 1 : vote.recommendation === 'reject' ? 2 : 3;
 
-      const encryptedInputs = await cofheClient
-        .encryptInputs([
-          Encryptable.uint8(voteValue),
-          Encryptable.uint8(vote.severityScore),
-          Encryptable.uint8(1), // 1 for hasNotes
-        ])
-        .setAccount(walletAddress)
-        .execute();
-
-      const [encryptedVote, encryptedScore] = encryptedInputs;
+      const encryptedInputs = await encryptVote(
+        { inputs: [{ data: voteValue, utype: 2, securityZone: 0 }, { data: vote.severityScore, utype: 2, securityZone: 0 }] },
+        {
+          account: walletAddress,
+          walletClient,
+          publicClient: publicClient!,
+        }
+      );
 
       submitVote({
         caseId: BigInt(caseId),
-        encryptedVote: `0x${encryptedVote.ctHash.toString(16)}` as `0x${string}`,
-        encryptedScore: `0x${encryptedScore.ctHash.toString(16)}` as `0x${string}`,
+        encryptedVote: `0x${encryptedInputs[0].ctHash.toString(16)}` as `0x${string}`,
+        encryptedScore: `0x${encryptedInputs[1].ctHash.toString(16)}` as `0x${string}`,
         encryptedNotes: '0x' as `0x${string}`,
       });
 
-      setEncryptionProgress('Vote submitted!Waiting for confirmation...');
+      setEncryptionProgress('Vote submitted! Waiting for confirmation...');
+      reset();
     } catch (err: any) {
       setEncryptionProgress(`Error: ${err.message}`);
     }
@@ -137,10 +132,10 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || isEncrypting}
         className="w-full py-4 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold transition-all shadow-lg shadow-purple-500/20"
       >
-        {isPending ? (
+        {isPending || isEncrypting ? (
           <span className="flex items-center justify-center gap-2">
             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             Encrypting & Submitting...
