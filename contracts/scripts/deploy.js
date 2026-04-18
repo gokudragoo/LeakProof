@@ -16,14 +16,14 @@ async function deploy() {
   console.log("Balance:", ethers.formatEther(balance), "ETH\n");
 
   if (balance === 0n) {
-    console.log("WARNING: Account has 0 ETH! Get some Sepolia ETH from a faucet.");
+    console.log("WARNING: Account has 0 ETH!");
   }
 
   const contractsDir = path.join(__dirname, "../artifacts/contracts");
 
-  // Deploy AccessControl
+  // Deploy AccessControl (named LeakProofAccessControl in artifacts)
   console.log("[1/4] Deploying AccessControl...");
-  const accessControlArtifact = JSON.parse(fs.readFileSync(path.join(contractsDir, "AccessControl.sol/AccessControl.json"), "utf8"));
+  const accessControlArtifact = JSON.parse(fs.readFileSync(path.join(contractsDir, "AccessControl.sol/LeakProofAccessControl.json"), "utf8"));
   const AccessControlFactory = new ContractFactory(accessControlArtifact.abi, accessControlArtifact.bytecode, wallet);
   const accessControl = await AccessControlFactory.deploy(wallet.address);
   const accessControlReceipt = await accessControl.deploymentTransaction().wait();
