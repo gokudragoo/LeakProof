@@ -45,6 +45,20 @@ export const ACCESS_CONTROL_ABI = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    inputs: [{ internalType: "address", name: "account", type: "address" }],
+    name: "grantAdminRole",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "account", type: "address" }],
+    name: "grantReviewerRole",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
 ] as const;
 
 export const CORE_ABI = [
@@ -159,6 +173,13 @@ export const REVIEWER_HUB_ABI = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    inputs: [{ internalType: "uint256", name: "_caseId", type: "uint256" }],
+    name: "getVoteCount",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;
 
 export const DISCLOSURE_CTRL_ABI = [
@@ -199,10 +220,10 @@ export const DISCLOSURE_CTRL_ABI = [
 ] as const;
 
 export const CONTRACTS = {
-  ACCESS_CONTROL: process.env.NEXT_PUBLIC_ACCESS_CONTROL || '0x0000000000000000000000000000000000000000',
-  CORE: process.env.NEXT_PUBLIC_CORE || '0x0000000000000000000000000000000000000000',
-  REVIEWER_HUB: process.env.NEXT_PUBLIC_REVIEWER_HUB || '0x0000000000000000000000000000000000000000',
-  DISCLOSURE_CTRL: process.env.NEXT_PUBLIC_DISCLOSURE_CTRL || '0x0000000000000000000000000000000000000000',
+  ACCESS_CONTROL: process.env.NEXT_PUBLIC_ACCESS_CONTROL || '0xcce613271DCBac6aF3CF4eBf53E4C992d6D8ef69',
+  CORE: process.env.NEXT_PUBLIC_CORE || '0x857dfb28574F58a67e7334a33EA7a00263Df9797',
+  REVIEWER_HUB: process.env.NEXT_PUBLIC_REVIEWER_HUB || '0x9D0c1dbbAF2E4849c27B88f8E8DA165D764ffB1b',
+  DISCLOSURE_CTRL: process.env.NEXT_PUBLIC_DISCLOSURE_CTRL || '0xB2078Aae5782788CA551A8212E27901233260E23',
 } as const;
 
 export const CASE_STATUS = {
