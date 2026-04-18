@@ -62,6 +62,17 @@ export const CORE_ABI = [
       { internalType: "string", name: "reportCid", type: "string" },
       { internalType: "bytes32", name: "reportDigest", type: "bytes32" },
       { internalType: "uint8", name: "category", type: "uint8" },
+      {
+        components: [
+          { internalType: "uint256", name: "ctHash", type: "uint256" },
+          { internalType: "uint8", name: "securityZone", type: "uint8" },
+          { internalType: "uint8", name: "utype", type: "uint8" },
+          { internalType: "bytes", name: "signature", type: "bytes" },
+        ],
+        internalType: "struct InEuint8",
+        name: "reporterSeverity",
+        type: "tuple",
+      },
       { internalType: "string", name: "evidenceCid", type: "string" },
       { internalType: "bytes32", name: "evidenceDigest", type: "bytes32" },
     ],
@@ -115,6 +126,20 @@ export const CORE_ABI = [
       { internalType: "uint8", name: "averageSeverityScore", type: "uint8" },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "getEncryptedReporterSeverity",
+    outputs: [{ internalType: "euint8", name: "", type: "bytes32" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "authorizeCaseConfidentialAccess",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -201,8 +226,6 @@ export const REVIEWER_HUB_ABI = [
     inputs: [
       { indexed: true, internalType: "uint256", name: "caseId", type: "uint256" },
       { indexed: true, internalType: "address", name: "reviewer", type: "address" },
-      { indexed: false, internalType: "uint8", name: "recommendation", type: "uint8" },
-      { indexed: false, internalType: "uint8", name: "severityScore", type: "uint8" },
     ],
     name: "VoteSubmitted",
     type: "event",
@@ -220,8 +243,28 @@ export const REVIEWER_HUB_ABI = [
   {
     inputs: [
       { internalType: "uint256", name: "caseId", type: "uint256" },
-      { internalType: "uint8", name: "recommendation", type: "uint8" },
-      { internalType: "uint8", name: "severityScore", type: "uint8" },
+      {
+        components: [
+          { internalType: "uint256", name: "ctHash", type: "uint256" },
+          { internalType: "uint8", name: "securityZone", type: "uint8" },
+          { internalType: "uint8", name: "utype", type: "uint8" },
+          { internalType: "bytes", name: "signature", type: "bytes" },
+        ],
+        internalType: "struct InEuint8",
+        name: "recommendationInput",
+        type: "tuple",
+      },
+      {
+        components: [
+          { internalType: "uint256", name: "ctHash", type: "uint256" },
+          { internalType: "uint8", name: "securityZone", type: "uint8" },
+          { internalType: "uint8", name: "utype", type: "uint8" },
+          { internalType: "bytes", name: "signature", type: "bytes" },
+        ],
+        internalType: "struct InEuint8",
+        name: "severityScoreInput",
+        type: "tuple",
+      },
       { internalType: "string", name: "encryptedNotes", type: "string" },
     ],
     name: "submitVote",
@@ -231,12 +274,22 @@ export const REVIEWER_HUB_ABI = [
   },
   {
     inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
-    name: "getReviewerVotes",
+    name: "getReviewerVoteStates",
     outputs: [
       { internalType: "address[]", name: "reviewers", type: "address[]" },
       { internalType: "bool[]", name: "voted", type: "bool[]" },
-      { internalType: "uint8[]", name: "recommendations", type: "uint8[]" },
-      { internalType: "uint8[]", name: "severityScores", type: "uint8[]" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "getEncryptedVoteSummary",
+    outputs: [
+      { internalType: "euint32", name: "approvals", type: "bytes32" },
+      { internalType: "euint32", name: "rejects", type: "bytes32" },
+      { internalType: "euint32", name: "escalations", type: "bytes32" },
+      { internalType: "euint8", name: "averageSeverityScore", type: "bytes32" },
     ],
     stateMutability: "view",
     type: "function",
@@ -278,11 +331,32 @@ export const REVIEWER_HUB_ABI = [
     type: "function",
   },
   {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "authorizeVoteSummaryAccess",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [
       { internalType: "uint256", name: "caseId", type: "uint256" },
       { internalType: "uint256", name: "threshold", type: "uint256" },
     ],
     name: "setApprovalThreshold",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "uint32", name: "approvals", type: "uint32" },
+      { internalType: "uint32", name: "rejects", type: "uint32" },
+      { internalType: "uint32", name: "escalations", type: "uint32" },
+      { internalType: "uint8", name: "averageSeverityScore", type: "uint8" },
+      { internalType: "bytes[]", name: "signatures", type: "bytes[]" },
+    ],
+    name: "publishConsensus",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
