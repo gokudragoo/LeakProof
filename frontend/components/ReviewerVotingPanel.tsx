@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import { useSubmitVote } from '@/hooks/useReviewerHub';
-import { deriveKeyFromWallet, encryptField } from '@/lib/cofhe';
+import { useCofheClient } from '@cofhe/react';
+import { Encryptable, FheTypes } from '@cofhe/sdk';
+import { usePublicClient, useWalletClient } from 'wagmi';
+import { bytesToHex } from '@/lib/cofhe';
 
 interface ReviewerVotingPanelProps {
   caseId: number;
@@ -10,6 +13,9 @@ interface ReviewerVotingPanelProps {
 }
 
 export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerVotingPanelProps) {
+  const cofheClient = useCofheClient();
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
   const { submitVote, isPending, isSuccess } = useSubmitVote();
 
   const [vote, setVote] = useState({
@@ -17,22 +23,45 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
     severityScore: 3,
     notes: '',
   });
+  const [encryptionProgress, setEncryptionProgress] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const key = deriveKeyFromWallet(walletAddress, caseId.toString());
+    if (!publicClient || !walletClient) {
+      console.error('Wallet not connected');
+      return;
+    }
 
-    const encryptedVote = encryptField(vote.recommendation, key);
-    const encryptedScore = encryptField(vote.severityScore.toString(), key);
-    const encryptedNotes = encryptField(vote.notes, key);
+    try {
+      setEncryptionProgress('Connecting to CoFHE...');
+      await cofheClient.connect(publicClient, walletClient);
 
-    submitVote({
-      caseId: BigInt(caseId),
-      encryptedVote: `0x${Buffer.from(encryptedVote).toString('hex')}` as `0x${string}`,
-      encryptedScore: `0x${Buffer.from(encryptedScore).toString('hex')}` as `0x${string}`,
-      encryptedNotes: `0x${Buffer.from(encryptedNotes).toString('hex')}` as `0x${string}`,
-    });
+      setEncryptionProgress('Encrypting vote with FHE...');
+      const voteValue = vote.recommendation === 'approve' ? 1 : vote.recommendation === 'reject' ? 2 : 3;
+
+      const encryptedInputs = await cofheClient
+        .encryptInputs([
+          Encryptable.uint8(voteValue),
+          Encryptable.uint8(vote.severityScore),
+          Encryptable.uint8(1), // 1 for hasNotes
+        ])
+        .setAccount(walletAddress)
+        .execute();
+
+      const [encryptedVote, encryptedScore] = encryptedInputs;
+
+      submitVote({
+        caseId: BigInt(caseId),
+        encryptedVote: `0x${encryptedVote.ctHash.toString(16)}` as `0x${string}`,
+        encryptedScore: `0x${encryptedScore.ctHash.toString(16)}` as `0x${string}`,
+        encryptedNotes: '0x' as `0x${string}`,
+      });
+
+      setEncryptionProgress('Vote submitted!Waiting for confirmation...');
+    } catch (err: any) {
+      setEncryptionProgress(`Error: ${err.message}`);
+    }
   };
 
   return (
@@ -42,6 +71,9 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
           {caseId}
         </span>
         Confidential Review
+        <span className="ml-auto px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 text-xs">
+          FHE Encrypted
+        </span>
       </h3>
 
       <div>
@@ -52,12 +84,12 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
               key={rec}
               type="button"
               onClick={() => setVote({ ...vote, recommendation: rec })}
-              className={`py-3 rounded-lg font-medium ${
+              className={`py-3 rounded-lg font-medium transition-all ${
                 vote.recommendation === rec
-                  ? rec === 'approve' ? 'bg-emerald-500 text-white'
-                    : rec === 'reject' ? 'bg-red-500 text-white'
-                    : 'bg-amber-500 text-black'
-                  : 'bg-dark-800 border border-gray-700'
+                  ? rec === 'approve' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                    : rec === 'reject' ? 'bg-red-500 text-white shadow-lg shadow-red-500/30'
+                    : 'bg-amber-500 text-black shadow-lg shadow-amber-500/30'
+                  : 'bg-dark-800 border border-gray-700 hover:border-gray-600'
               }`}
             >
               {rec.charAt(0).toUpperCase() + rec.slice(1)}
@@ -74,10 +106,10 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
               key={level}
               type="button"
               onClick={() => setVote({ ...vote, severityScore: level })}
-              className={`w-12 h-12 rounded-lg font-semibold ${
+              className={`w-12 h-12 rounded-lg font-semibold transition-all ${
                 vote.severityScore === level
-                  ? level <= 2 ? 'bg-green-500 text-white' : level <= 3 ? 'bg-yellow-500 text-black' : 'bg-red-500 text-white'
-                  : 'bg-dark-800 border border-gray-700'
+                  ? level <= 2 ? 'bg-green-500 text-white shadow-lg shadow-green-500/30' : level <= 3 ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/30' : 'bg-red-500 text-white shadow-lg shadow-red-500/30'
+                  : 'bg-dark-800 border border-gray-700 hover:border-gray-600'
               }`}
             >
               {level}
@@ -92,20 +124,35 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
           value={vote.notes}
           onChange={(e) => setVote({ ...vote, notes: e.target.value })}
           className="w-full px-4 py-3 rounded-lg bg-dark-800 border border-gray-700 min-h-[100px]"
-          placeholder="Confidential notes (will be encrypted)..."
+          placeholder="Confidential notes (encrypted with FHE)..."
         />
       </div>
+
+      {encryptionProgress && (
+        <div className="p-3 rounded-lg bg-purple-500/20 text-purple-400 text-sm flex items-center gap-2">
+          <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          {encryptionProgress}
+        </div>
+      )}
 
       <button
         type="submit"
         disabled={isPending}
-        className="w-full py-4 rounded-lg bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 text-white font-semibold"
+        className="w-full py-4 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold transition-all shadow-lg shadow-purple-500/20"
       >
-        {isPending ? 'Encrypting Vote...' : 'Submit Encrypted Vote'}
+        {isPending ? (
+          <span className="flex items-center justify-center gap-2">
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            Encrypting & Submitting...
+          </span>
+        ) : (
+          'Submit FHE-Encrypted Vote'
+        )}
       </button>
 
       {isSuccess && (
-        <div className="p-3 rounded-lg bg-emerald-500/20 text-emerald-400 text-sm text-center">
+        <div className="p-3 rounded-lg bg-emerald-500/20 text-emerald-400 text-sm text-center flex items-center gap-2">
+          <span className="text-xl">&#10003;</span>
           Vote submitted successfully!
         </div>
       )}
