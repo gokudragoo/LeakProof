@@ -3,7 +3,7 @@
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
-import { useCaseRegistry, useCase } from '@/hooks/useCaseRegistry';
+import { useCaseRegistry } from '@/hooks/useCaseRegistry';
 import { useUserRole } from '@/hooks/useAccessControl';
 import { CASE_STATUS, CASE_CATEGORY } from '@/lib/contracts';
 import AnimatedCounter from '@/components/AnimatedCounter';
