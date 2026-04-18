@@ -243,12 +243,12 @@ async function main() {
     throw new Error(`Unexpected confidential reporter severity: ${decryptedReporterSeverity}`);
   }
 
-  const [encryptedRecommendation, encryptedVoteSeverity] = await cofheClient
-    .encryptInputs([Encryptable.uint8(1n), Encryptable.uint8(5n)])
+  const [encryptedRecommendation] = await cofheClient
+    .encryptInputs([Encryptable.uint8(1n)])
     .execute();
 
   await waitAndLog(
-    reviewerHub.submitVote(caseId, encryptedRecommendation, encryptedVoteSeverity, "smoke-review"),
+    reviewerHub.submitVote(caseId, encryptedRecommendation, 5, "smoke-review"),
     "Submitted confidential vote"
   );
 
@@ -263,18 +263,13 @@ async function main() {
   const escalations = await withRetries("Decrypt escalations", () =>
     cofheClient.decryptForTx(encryptedSummary[2]).withPermit(permit).execute()
   );
-  const severityTotal = await withRetries("Decrypt severity total", () =>
-    cofheClient.decryptForTx(encryptedSummary[3]).withPermit(permit).execute()
-  );
-
   await waitAndLog(
     reviewerHub.publishConsensus(
       caseId,
       Number(approvals.decryptedValue),
       Number(rejects.decryptedValue),
       Number(escalations.decryptedValue),
-      Number(severityTotal.decryptedValue),
-      [approvals.signature, rejects.signature, escalations.signature, severityTotal.signature]
+      [approvals.signature, rejects.signature, escalations.signature]
     ),
     "Published verified consensus"
   );
