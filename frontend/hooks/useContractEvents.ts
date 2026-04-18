@@ -50,12 +50,15 @@ export function useContractEvents() {
       abi: CORE_ABI as any,
       eventName: 'CaseCreated',
       onLogs: (logs) => {
-        const events = logs.map((log) => ({
-          caseId: log.args.caseId ?? 0n,
-          reporter: log.args.reporter ?? '0x',
-          status: log.args.status ?? 0,
-          timestamp: log.args.timestamp ?? 0n,
-        }));
+        const events = logs.map((log) => {
+          const args = log.args as any;
+          return {
+            caseId: args?.caseId ?? 0n,
+            reporter: args?.reporter ?? '0x',
+            status: args?.status ?? 0,
+            timestamp: args?.timestamp ?? 0n,
+          };
+        });
         setCaseCreatedEvents((prev) => [...events, ...prev]);
       },
     });
