@@ -1,5 +1,6 @@
 "use client";
 
+import { transformEncryptedReturnTypes } from "@cofhe/abi";
 import { decodeEventLog } from "viem";
 import {
   usePublicClient,
@@ -8,7 +9,7 @@ import {
   useWriteContract,
 } from "wagmi";
 import { CONTRACTS, CORE_ABI, normalizeCaseRecord } from "@/lib/contracts";
-import type { CaseRecord, CreateCaseInput } from "@/types";
+import type { CaseRecord, CreateCaseInput, EncryptedHandle } from "@/types";
 
 export function useCaseRegistry() {
   const { data: caseCount, isLoading } = useReadContract({
@@ -157,6 +158,7 @@ export function useCreateCase() {
         input.reportCid,
         input.reportDigest,
         input.category,
+        input.reporterSeverity,
         input.evidenceCid ?? "",
         input.evidenceDigest ??
           "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -198,5 +200,31 @@ export function useCreateCase() {
     txHash,
     isPending,
     error,
+  };
+}
+
+export function useEncryptedReporterSeverity(caseId: number) {
+  const { data, isLoading, refetch } = useReadContract({
+    address: CONTRACTS.CORE,
+    abi: CORE_ABI,
+    functionName: "getEncryptedReporterSeverity",
+    args: [BigInt(caseId)],
+    query: {
+      enabled: caseId > 0,
+    },
+  });
+
+  const transformed = data
+    ? (transformEncryptedReturnTypes(
+        CORE_ABI,
+        "getEncryptedReporterSeverity",
+        data as `0x${string}`
+      ) as EncryptedHandle)
+    : null;
+
+  return {
+    encryptedSeverity: transformed,
+    isLoading,
+    refetch,
   };
 }
