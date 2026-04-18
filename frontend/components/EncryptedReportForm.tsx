@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { CASE_CATEGORY } from '@/lib/contracts';
 import { uploadFileToIPFS, uploadJsonToIPFS } from '@/lib/pinata';
 import { EMPTY_DIGEST, sha256File, sha256Text } from '@/lib/report-utils';
+import { useCofheClient } from '@/hooks/useCofheClient';
 import { useCreateCase } from '@/hooks/useCaseRegistry';
 import type { ReportPayload } from '@/types';
 
@@ -14,6 +15,7 @@ interface EncryptedReportFormProps {
 
 export default function EncryptedReportForm({ walletAddress, onSuccess }: EncryptedReportFormProps) {
   const { createCase, isPending } = useCreateCase();
+  const { encryptUint8, isReady: cofheReady } = useCofheClient();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState(3);
@@ -28,7 +30,6 @@ export default function EncryptedReportForm({ walletAddress, onSuccess }: Encryp
       const payload: ReportPayload = {
         title,
         description,
-        severity,
         category,
         createdAt: new Date().toISOString(),
         reporterAddress: walletAddress,
@@ -48,11 +49,15 @@ export default function EncryptedReportForm({ walletAddress, onSuccess }: Encryp
         evidenceDigest = await sha256File(evidenceFile);
       }
 
+      setStatus('Encrypting confidential severity...');
+      const reporterSeverity = await encryptUint8(severity);
+
       setStatus('Submitting on-chain...');
       const result = await createCase({
         reportCid,
         reportDigest,
         category,
+        reporterSeverity,
         evidenceCid,
         evidenceDigest,
       });
@@ -120,10 +125,10 @@ export default function EncryptedReportForm({ walletAddress, onSuccess }: Encryp
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || !cofheReady}
         className="w-full py-4 rounded-lg bg-gradient-to-r from-primary-500 to-cyan-500 hover:from-primary-400 hover:to-cyan-400 disabled:from-gray-600 text-white font-semibold"
       >
-        {isPending ? 'Waiting for wallet...' : 'Submit report'}
+        {isPending ? 'Waiting for wallet...' : !cofheReady ? 'Connecting confidential client...' : 'Submit report'}
       </button>
     </form>
   );
