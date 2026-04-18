@@ -20,7 +20,6 @@ export interface CaseRecord {
 export interface ReportPayload {
   title: string;
   description: string;
-  severity: number;
   category: number;
   createdAt: string;
   reporterAddress: string;
@@ -30,8 +29,6 @@ export interface ReportPayload {
 export interface VoteRecord {
   reviewer: `0x${string}`;
   hasVoted: boolean;
-  recommendation: number;
-  severityScore: number;
 }
 
 export interface VoteSummary {
@@ -41,24 +38,44 @@ export interface VoteSummary {
   votes: number;
 }
 
+export interface ConfidentialVoteSummary {
+  approvals: number;
+  rejects: number;
+  escalations: number;
+  averageSeverityScore: number;
+}
+
 export interface DisclosurePermission {
   caseId: number;
   grantee: `0x${string}`;
   level: number;
 }
 
+export interface EncryptedUint8Input {
+  ctHash: bigint;
+  securityZone: number;
+  utype: number;
+  signature: `0x${string}`;
+}
+
+export interface EncryptedHandle {
+  ctHash: `0x${string}`;
+  utype: number;
+}
+
 export interface CreateCaseInput {
   reportCid: string;
   reportDigest: `0x${string}`;
   category: number;
+  reporterSeverity: EncryptedUint8Input;
   evidenceCid?: string;
   evidenceDigest?: `0x${string}`;
 }
 
 export interface VoteSubmission {
   caseId: number;
-  recommendation: number;
-  severityScore: number;
+  recommendation: EncryptedUint8Input;
+  severityScore: EncryptedUint8Input;
   notes: string;
 }
 
