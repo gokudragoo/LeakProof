@@ -1,5 +1,5 @@
-export const EMPTY_DIGEST =
-  "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
+export const EMPTY_DIGEST: `0x${string}` =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 function bytesToHex(bytes: Uint8Array) {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
