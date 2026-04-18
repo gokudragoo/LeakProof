@@ -4,7 +4,8 @@ pragma solidity ^0.8.20;
 import "./AccessControl.sol";
 
 contract LeakProofCore {
-    LeakProofAccessControl public accessControl;
+    LeakProofAccessControl public immutable accessControl;
+    address public reviewerHub;
 
     enum CaseStatus {
         Submitted,
@@ -27,30 +28,48 @@ contract LeakProofCore {
     }
 
     struct Case {
-        bytes encryptedTitle;
-        bytes encryptedDescription;
-        uint8 encryptedSeverity;
+        string reportCid;
+        bytes32 reportDigest;
         uint8 category;
-        bytes32 evidenceCID;
+        string evidenceCid;
+        bytes32 evidenceDigest;
         address reporter;
         CaseStatus status;
-        uint256 createdAt;
-        uint256 updatedAt;
-        uint256 reviewerCount;
-        uint256 approvalCount;
+        uint64 createdAt;
+        uint64 updatedAt;
+        uint32 reviewerCount;
+        uint32 voteCount;
+        uint32 approvalCount;
+        uint32 rejectCount;
+        uint32 escalationCount;
+        uint8 averageSeverityScore;
+        bool exists;
     }
 
     uint256 public caseCount;
-    mapping(uint256 => Case) public cases;
-    mapping(uint256 => address[]) public caseReviewers;
+    mapping(uint256 => Case) private cases;
+    mapping(uint256 => address[]) private caseReviewers;
+    mapping(uint256 => mapping(address => bool)) public reviewerAssigned;
+    mapping(address => uint256[]) private reporterCases;
 
+    event ReviewerHubUpdated(address indexed reviewerHub);
     event CaseCreated(
         uint256 indexed caseId,
         address indexed reporter,
-        CaseStatus status,
+        uint8 indexed category,
+        string reportCid,
+        string evidenceCid,
         uint256 timestamp
     );
-
+    event ReviewerRegistered(uint256 indexed caseId, address indexed reviewer);
+    event VoteTallied(
+        uint256 indexed caseId,
+        uint256 voteCount,
+        uint256 approvalCount,
+        uint256 rejectCount,
+        uint256 escalationCount,
+        uint8 averageSeverityScore
+    );
     event StatusUpdated(
         uint256 indexed caseId,
         CaseStatus oldStatus,
@@ -58,115 +77,222 @@ contract LeakProofCore {
         address indexed updater
     );
 
-    constructor(address _accessControl) {
-        require(_accessControl != address(0), "Invalid access control address");
-        accessControl = LeakProofAccessControl(_accessControl);
+    modifier onlyAdmin() {
+        require(accessControl.isAdmin(msg.sender), "Admin only");
+        _;
+    }
+
+    modifier onlyReviewerHub() {
+        require(msg.sender == reviewerHub, "Reviewer hub only");
+        _;
+    }
+
+    modifier caseMustExist(uint256 caseId) {
+        require(cases[caseId].exists, "Invalid case ID");
+        _;
+    }
+
+    constructor(address accessControlAddress) {
+        require(accessControlAddress != address(0), "Invalid access control");
+        accessControl = LeakProofAccessControl(accessControlAddress);
+    }
+
+    function setReviewerHub(address reviewerHubAddress) external onlyAdmin {
+        require(reviewerHubAddress != address(0), "Invalid reviewer hub");
+        reviewerHub = reviewerHubAddress;
+        emit ReviewerHubUpdated(reviewerHubAddress);
     }
 
     function createCase(
-        bytes memory _encryptedTitle,
-        bytes memory _encryptedDescription,
-        uint8 _encryptedSeverity,
-        uint8 _category,
-        bytes32 _evidenceCID
+        string calldata reportCid,
+        bytes32 reportDigest,
+        uint8 category,
+        string calldata evidenceCid,
+        bytes32 evidenceDigest
     ) external returns (uint256) {
-        require(_encryptedTitle.length > 0, "Title required");
-        require(_encryptedDescription.length > 0, "Description required");
-        require(_category < 7, "Invalid category");
+        require(bytes(reportCid).length > 0, "Report CID required");
+        require(category <= uint8(CaseCategory.Other), "Invalid category");
 
-        caseCount++;
+        caseCount += 1;
         uint256 newCaseId = caseCount;
 
-        Case storage newCase = cases[newCaseId];
-        newCase.encryptedTitle = _encryptedTitle;
-        newCase.encryptedDescription = _encryptedDescription;
-        newCase.encryptedSeverity = _encryptedSeverity;
-        newCase.category = _category;
-        newCase.evidenceCID = _evidenceCID;
-        newCase.reporter = msg.sender;
-        newCase.status = CaseStatus.Submitted;
-        newCase.createdAt = block.timestamp;
-        newCase.updatedAt = block.timestamp;
+        cases[newCaseId] = Case({
+            reportCid: reportCid,
+            reportDigest: reportDigest,
+            category: category,
+            evidenceCid: evidenceCid,
+            evidenceDigest: evidenceDigest,
+            reporter: msg.sender,
+            status: CaseStatus.Submitted,
+            createdAt: uint64(block.timestamp),
+            updatedAt: uint64(block.timestamp),
+            reviewerCount: 0,
+            voteCount: 0,
+            approvalCount: 0,
+            rejectCount: 0,
+            escalationCount: 0,
+            averageSeverityScore: 0,
+            exists: true
+        });
 
-        emit CaseCreated(newCaseId, msg.sender, CaseStatus.Submitted, block.timestamp);
+        reporterCases[msg.sender].push(newCaseId);
+
+        emit CaseCreated(newCaseId, msg.sender, category, reportCid, evidenceCid, block.timestamp);
         return newCaseId;
     }
 
-    function updateStatus(uint256 _caseId, CaseStatus _newStatus) external {
-        require(_caseId > 0 && _caseId <= caseCount, "Invalid case ID");
-        Case storage caseItem = cases[_caseId];
-        CaseStatus oldStatus = caseItem.status;
+    function registerReviewerAssignment(uint256 caseId, address reviewer)
+        external
+        onlyReviewerHub
+        caseMustExist(caseId)
+    {
+        require(reviewer != address(0), "Invalid reviewer");
+        require(!reviewerAssigned[caseId][reviewer], "Reviewer already assigned");
+
+        reviewerAssigned[caseId][reviewer] = true;
+        caseReviewers[caseId].push(reviewer);
+        cases[caseId].reviewerCount += 1;
+        cases[caseId].updatedAt = uint64(block.timestamp);
+
+        if (cases[caseId].status == CaseStatus.Submitted) {
+            _setStatus(caseId, CaseStatus.UnderReview, msg.sender);
+        }
+
+        emit ReviewerRegistered(caseId, reviewer);
+    }
+
+    function recordVoteTally(
+        uint256 caseId,
+        uint32 voteCount,
+        uint32 approvalCount,
+        uint32 rejectCount,
+        uint32 escalationCount,
+        uint8 averageSeverityScore
+    ) external onlyReviewerHub caseMustExist(caseId) {
+        Case storage caseItem = cases[caseId];
+        caseItem.voteCount = voteCount;
+        caseItem.approvalCount = approvalCount;
+        caseItem.rejectCount = rejectCount;
+        caseItem.escalationCount = escalationCount;
+        caseItem.averageSeverityScore = averageSeverityScore;
+        caseItem.updatedAt = uint64(block.timestamp);
+
+        emit VoteTallied(caseId, voteCount, approvalCount, rejectCount, escalationCount, averageSeverityScore);
+    }
+
+    function updateStatus(uint256 caseId, CaseStatus newStatus) external caseMustExist(caseId) {
+        Case storage caseItem = cases[caseId];
+
+        bool canCloseAsReporter =
+            msg.sender == caseItem.reporter &&
+            newStatus == CaseStatus.Closed &&
+            (caseItem.status == CaseStatus.Verified || caseItem.status == CaseStatus.Rejected);
 
         require(
-            accessControl.isAdmin(msg.sender) ||
-            accessControl.isReviewer(msg.sender) ||
-            caseItem.reporter == msg.sender,
-            "Not authorized to update status"
+            accessControl.isAdmin(msg.sender) || msg.sender == reviewerHub || canCloseAsReporter,
+            "Not authorized"
         );
 
-        require(_newStatus > oldStatus || _newStatus == CaseStatus.Escalated || _newStatus == CaseStatus.Closed,
-            "Cannot revert status"
-        );
-
-        caseItem.status = _newStatus;
-        caseItem.updatedAt = block.timestamp;
-
-        emit StatusUpdated(_caseId, oldStatus, _newStatus, msg.sender);
+        _setStatus(caseId, newStatus, msg.sender);
     }
 
-    function getCase(uint256 _caseId) external view returns (
-        bytes memory,
-        bytes memory,
-        uint8,
-        uint8,
-        bytes32,
-        address,
-        uint256,
-        uint256,
-        CaseStatus
-    ) {
-        require(_caseId > 0 && _caseId <= caseCount, "Invalid case ID");
-        Case storage c = cases[_caseId];
+    function _setStatus(uint256 caseId, CaseStatus newStatus, address updater) internal {
+        Case storage caseItem = cases[caseId];
+        CaseStatus oldStatus = caseItem.status;
+        require(oldStatus != newStatus, "Status unchanged");
+
+        if (newStatus == CaseStatus.Closed) {
+            require(
+                oldStatus == CaseStatus.Verified ||
+                    oldStatus == CaseStatus.Rejected ||
+                    oldStatus == CaseStatus.Escalated,
+                "Cannot close yet"
+            );
+        }
+
+        caseItem.status = newStatus;
+        caseItem.updatedAt = uint64(block.timestamp);
+
+        emit StatusUpdated(caseId, oldStatus, newStatus, updater);
+    }
+
+    function getCase(uint256 caseId)
+        external
+        view
+        caseMustExist(caseId)
+        returns (
+            string memory reportCid,
+            bytes32 reportDigest,
+            uint8 category,
+            string memory evidenceCid,
+            bytes32 evidenceDigest,
+            address reporter,
+            uint256 createdAt,
+            uint256 updatedAt,
+            CaseStatus status,
+            uint256 reviewerCount,
+            uint256 voteCount,
+            uint256 approvalCount,
+            uint256 rejectCount,
+            uint256 escalationCount,
+            uint8 averageSeverityScore
+        )
+    {
+        Case storage caseItem = cases[caseId];
         return (
-            c.encryptedTitle,
-            c.encryptedDescription,
-            c.encryptedSeverity,
-            c.category,
-            c.evidenceCID,
-            c.reporter,
-            c.createdAt,
-            c.updatedAt,
-            c.status
+            caseItem.reportCid,
+            caseItem.reportDigest,
+            caseItem.category,
+            caseItem.evidenceCid,
+            caseItem.evidenceDigest,
+            caseItem.reporter,
+            caseItem.createdAt,
+            caseItem.updatedAt,
+            caseItem.status,
+            caseItem.reviewerCount,
+            caseItem.voteCount,
+            caseItem.approvalCount,
+            caseItem.rejectCount,
+            caseItem.escalationCount,
+            caseItem.averageSeverityScore
         );
     }
 
-    function getCaseReviewers(uint256 _caseId) external view returns (address[] memory) {
-        require(_caseId > 0 && _caseId <= caseCount, "Invalid case ID");
-        return caseReviewers[_caseId];
+    function getCaseStatus(uint256 caseId) external view caseMustExist(caseId) returns (CaseStatus) {
+        return cases[caseId].status;
     }
 
-    function setCaseApprovalCount(uint256 _caseId, uint256 _count) external {
-        require(_caseId > 0 && _caseId <= caseCount, "Invalid case ID");
-        require(accessControl.isReviewer(msg.sender), "Must be reviewer");
-        cases[_caseId].approvalCount = _count;
+    function getCaseReporter(uint256 caseId) external view caseMustExist(caseId) returns (address) {
+        return cases[caseId].reporter;
     }
 
-    function getCaseStatus(uint256 _caseId) external view returns (CaseStatus) {
-        require(_caseId > 0 && _caseId <= caseCount, "Invalid case ID");
-        return cases[_caseId].status;
+    function getCaseReviewers(uint256 caseId)
+        external
+        view
+        caseMustExist(caseId)
+        returns (address[] memory)
+    {
+        return caseReviewers[caseId];
     }
 
-    function getCasesByStatus(CaseStatus _status) external view returns (uint256[] memory) {
+    function getCasesByReporter(address reporter) external view returns (uint256[] memory) {
+        return reporterCases[reporter];
+    }
+
+    function getCasesByStatus(CaseStatus status) external view returns (uint256[] memory) {
         uint256 count = 0;
         for (uint256 i = 1; i <= caseCount; i++) {
-            if (cases[i].status == _status) count++;
+            if (cases[i].exists && cases[i].status == status) {
+                count += 1;
+            }
         }
 
         uint256[] memory result = new uint256[](count);
         uint256 index = 0;
         for (uint256 i = 1; i <= caseCount; i++) {
-            if (cases[i].status == _status) {
-                result[index++] = i;
+            if (cases[i].exists && cases[i].status == status) {
+                result[index] = i;
+                index += 1;
             }
         }
         return result;
@@ -178,5 +304,9 @@ contract LeakProofCore {
             result[i - 1] = i;
         }
         return result;
+    }
+
+    function caseExists(uint256 caseId) external view returns (bool) {
+        return cases[caseId].exists;
     }
 }
