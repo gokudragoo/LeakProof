@@ -40,7 +40,7 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
         {
           items: [
             { data: voteValue, utype: 2, securityZone: 0 },
-            { data: voteData.severityScore, utype: 2, securityZone: 0 },
+            { data: BigInt(voteData.severityScore), utype: 2, securityZone: 0 },
           ],
           account: address,
         }
