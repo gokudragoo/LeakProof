@@ -3,11 +3,17 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import SplashScreen from '@/components/SplashScreen';
-import { Providers } from './providers';
 
 const InteractiveCanvas = dynamic(() => import('@/components/InteractiveCanvas'), {
   ssr: false,
 });
+
+const Providers = dynamic(
+  () => import('./providers').then((module) => module.Providers),
+  {
+    ssr: false,
+  }
+);
 
 export default function ClientWrapper({ children }: { children: React.ReactNode }) {
   const [showSplash, setShowSplash] = useState(true);
