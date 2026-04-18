@@ -11,14 +11,16 @@ import {
 } from '@/lib/contracts';
 import { fetchJsonFromIPFS, getIpfsUrl } from '@/lib/pinata';
 import { formatTimestamp } from '@/lib/report-utils';
-import { useCase } from '@/hooks/useCaseRegistry';
+import { useCase, useEncryptedReporterSeverity } from '@/hooks/useCaseRegistry';
+import { useCofheClient } from '@/hooks/useCofheClient';
 import {
+  useEncryptedVoteSummary,
   useIsReviewerAssigned,
-  useReviewerVotes,
+  useReviewerVoteStates,
   useSubmitVote,
   useVoteSummary,
 } from '@/hooks/useReviewerHub';
-import type { ReportPayload } from '@/types';
+import type { ConfidentialVoteSummary, ReportPayload } from '@/types';
 
 const recommendationOptions = [
   { label: 'Approve', value: 1, tone: 'emerald' },
@@ -30,12 +32,17 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
   const caseId = Number(params.id);
   const { isConnected, address } = useAccount();
   const { caseData, isLoading: caseLoading, refetch: refetchCase } = useCase(caseId);
+  const { encryptedSeverity, refetch: refetchEncryptedSeverity } = useEncryptedReporterSeverity(caseId);
   const { isAssigned, isLoading: assignmentLoading, refetch: refetchAssignment } = useIsReviewerAssigned(caseId, address);
-  const { votes, refetch: refetchVotes } = useReviewerVotes(caseId);
+  const { votes, refetch: refetchVotes } = useReviewerVoteStates(caseId);
+  const { handles: encryptedSummaryHandles, refetch: refetchEncryptedSummary } = useEncryptedVoteSummary(caseId);
   const { summary, refetch: refetchSummary } = useVoteSummary(caseId);
   const { submitVote, isPending } = useSubmitVote();
+  const { decryptHandle, encryptUint8, isReady: cofheReady } = useCofheClient();
 
   const [payload, setPayload] = useState<ReportPayload | null>(null);
+  const [confidentialSummary, setConfidentialSummary] = useState<ConfidentialVoteSummary | null>(null);
+  const [reporterSeverity, setReporterSeverity] = useState<number | null>(null);
   const [recommendation, setRecommendation] = useState(1);
   const [severityScore, setSeverityScore] = useState(3);
   const [notes, setNotes] = useState('');
@@ -70,6 +77,51 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
     };
   }, [caseData?.reportCid]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function decryptPrivateValues() {
+      if (!isConnected || !isAssigned || !cofheReady) {
+        return;
+      }
+
+      try {
+        if (encryptedSeverity) {
+          const nextReporterSeverity = await decryptHandle(encryptedSeverity);
+          if (active) {
+            setReporterSeverity(nextReporterSeverity);
+          }
+        }
+
+        if (encryptedSummaryHandles) {
+          const [approvals, rejects, escalations, averageSeverityScore] = await Promise.all(
+            encryptedSummaryHandles.map((handle) => decryptHandle(handle))
+          );
+
+          if (active) {
+            setConfidentialSummary({
+              approvals,
+              rejects,
+              escalations,
+              averageSeverityScore,
+            });
+          }
+        }
+      } catch {
+        if (active) {
+          setReporterSeverity(null);
+          setConfidentialSummary(null);
+        }
+      }
+    }
+
+    void decryptPrivateValues();
+
+    return () => {
+      active = false;
+    };
+  }, [cofheReady, decryptHandle, encryptedSeverity, encryptedSummaryHandles, isAssigned, isConnected]);
+
   const myVote = votes.find((item) => item.reviewer.toLowerCase() === address?.toLowerCase());
 
   const handleSubmitVote = async (event: React.FormEvent) => {
@@ -77,15 +129,26 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
     setError('');
 
     try {
+      setStatusLine('Encrypting confidential vote with CoFHE...');
+      const encryptedRecommendation = await encryptUint8(recommendation);
+      const encryptedSeverityScore = await encryptUint8(severityScore);
+
       setStatusLine('Submitting vote on-chain...');
       await submitVote({
         caseId,
-        recommendation,
-        severityScore,
+        recommendation: encryptedRecommendation,
+        severityScore: encryptedSeverityScore,
         notes: notes.trim(),
       });
 
-      await Promise.all([refetchVotes(), refetchSummary(), refetchCase(), refetchAssignment()]);
+      await Promise.all([
+        refetchVotes(),
+        refetchSummary(),
+        refetchCase(),
+        refetchAssignment(),
+        refetchEncryptedSeverity(),
+        refetchEncryptedSummary(),
+      ]);
       setStatusLine('Vote confirmed on-chain.');
     } catch (submissionError) {
       setStatusLine('');
@@ -160,9 +223,7 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
                   <div>Created: {formatTimestamp(caseData.createdAt)}</div>
                   <div>Updated: {formatTimestamp(caseData.updatedAt)}</div>
                   <div>Reporter: {caseData.reporter}</div>
-                  <div>
-                    Severity: {payload?.severity ?? (caseData.averageSeverityScore || 'Pending')}
-                  </div>
+                  <div>Submitted severity: {reporterSeverity ?? 'Private'}</div>
                 </div>
 
                 {caseData.evidenceCid ? (
@@ -184,21 +245,30 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
                 <div className="grid sm:grid-cols-4 gap-4 mt-5 text-sm">
                   <div className="rounded-2xl bg-slate-950/50 border border-white/10 p-4">
                     <div className="text-gray-500">Approvals</div>
-                    <div className="text-2xl font-bold text-emerald-300 mt-2">{summary.approvals}</div>
+                    <div className="text-2xl font-bold text-emerald-300 mt-2">
+                      {confidentialSummary?.approvals ?? summary.approvals}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-slate-950/50 border border-white/10 p-4">
                     <div className="text-gray-500">Rejects</div>
-                    <div className="text-2xl font-bold text-rose-300 mt-2">{summary.rejects}</div>
+                    <div className="text-2xl font-bold text-rose-300 mt-2">
+                      {confidentialSummary?.rejects ?? summary.rejects}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-slate-950/50 border border-white/10 p-4">
                     <div className="text-gray-500">Escalations</div>
-                    <div className="text-2xl font-bold text-amber-300 mt-2">{summary.escalations}</div>
+                    <div className="text-2xl font-bold text-amber-300 mt-2">
+                      {confidentialSummary?.escalations ?? summary.escalations}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-slate-950/50 border border-white/10 p-4">
                     <div className="text-gray-500">Total votes</div>
                     <div className="text-2xl font-bold text-sky-300 mt-2">{summary.votes}</div>
                   </div>
                 </div>
+                <p className="text-xs text-gray-500 mt-4">
+                  Tally values are decrypted privately with your permit when confidential access is available.
+                </p>
               </div>
             </div>
 
@@ -206,7 +276,7 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
               <h2 className="text-2xl font-semibold">Submit your vote</h2>
               {myVote?.hasVoted ? (
                 <div className="mt-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-5 text-sm text-emerald-200">
-                  Vote already recorded: {getRecommendationLabel(myVote.recommendation)} with severity {myVote.severityScore}.
+                  Vote already recorded confidentially for case #{caseId}.
                 </div>
               ) : (
                 <form onSubmit={handleSubmitVote} className="space-y-5 mt-5">
@@ -266,10 +336,10 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
 
                   <button
                     type="submit"
-                    disabled={isPending}
+                    disabled={isPending || !cofheReady}
                     className="w-full py-4 rounded-2xl bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white font-semibold disabled:from-gray-600 disabled:to-gray-600"
                   >
-                    {isPending ? 'Waiting for wallet...' : 'Submit vote'}
+                    {isPending ? 'Waiting for wallet...' : !cofheReady ? 'Connecting confidential client...' : 'Submit vote'}
                   </button>
                 </form>
               )}
