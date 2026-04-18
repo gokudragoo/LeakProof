@@ -42,6 +42,7 @@ export interface ConfidentialVoteSummary {
   approvals: number;
   rejects: number;
   escalations: number;
+  severityTotal: number;
   averageSeverityScore: number;
 }
 
