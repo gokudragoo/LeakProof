@@ -1,54 +1,53 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { useAssignedCases } from '@/hooks/useReviewerHub';
-import { useCaseStatus } from '@/hooks/useCaseRegistry';
-import { CASE_STATUS } from '@/lib/contracts';
 import AnimatedCounter from '@/components/AnimatedCounter';
 
 export default function ReviewerDashboard() {
   const { isConnected, address } = useAccount();
-  const { assignedCases, isLoading: casesLoading } = useAssignedCases(address);
-  const { status: caseStatus } = useCaseStatus(assignedCases[0] || 0);
+  const { assignedCases, isLoading } = useAssignedCases(address);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   return (
     <div className="min-h-screen relative">
       <header className="border-b border-white/5 glass-strong sticky top-0 z-50 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+              <span className="text-white text-lg">👁️</span>
+            </div>
+            <span className="text-xl font-bold gradient-text">LeakProof X</span>
+          </Link>
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-              <span className="text-xl font-bold gradient-text">LeakProof X</span>
-            </Link>
             <span className="px-3 py-1.5 rounded-full bg-purple-500/20 text-purple-400 text-sm font-medium border border-purple-500/30">
               Reviewer
             </span>
+            <ConnectButton />
           </div>
-          <ConnectButton />
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8 relative z-10">
         {!isConnected ? (
-          <div className="flex flex-col items-center justify-center py-20">
+          <div className="flex flex-col items-center justify-center py-20 slide-up">
             <div className="w-32 h-32 rounded-3xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center mb-8 pulse-glow">
-              <svg className="w-16 h-16 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
+              <span className="text-6xl">🛡️</span>
             </div>
-            <h1 className="text-3xl font-bold mb-4 slide-up">Connect Your Wallet</h1>
-            <p className="text-gray-400 mb-8 max-w-md text-center slide-up animate-delay-100">
+            <h1 className="text-3xl font-bold mb-4 gradient-text">Connect Your Wallet</h1>
+            <p className="text-gray-400 mb-8 max-w-md text-center">
               Connect your wallet to access the reviewer dashboard and evaluate cases.
             </p>
-            <div className="slide-up animate-delay-200">
-              <ConnectButton />
-            </div>
+            <ConnectButton />
           </div>
         ) : (
           <>
@@ -82,19 +81,17 @@ export default function ReviewerDashboard() {
             </div>
 
             {/* Assigned Cases */}
-            <div className="glass rounded-2xl p-6 slide-up animate-delay-300">
+            <div className="glass rounded-2xl p-6 slide-up animate-delay-200">
               <h2 className="text-xl font-semibold mb-6">Assigned Cases</h2>
 
-              {casesLoading ? (
+              {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : assignedCases.length === 0 ? (
                 <div className="text-center py-16">
                   <div className="w-20 h-20 rounded-2xl bg-dark-700/50 flex items-center justify-center mx-auto mb-6">
-                    <svg className="w-10 h-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                    </svg>
+                    <span className="text-4xl">📋</span>
                   </div>
                   <p className="text-gray-400 mb-2">No cases assigned yet</p>
                   <p className="text-sm text-gray-500">Cases will appear here when assigned by an admin</p>
@@ -117,8 +114,9 @@ export default function ReviewerDashboard() {
                         </div>
                         <Link
                           href={`/reviewer/case/${caseId}`}
-                          className="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 text-sm font-medium transition-colors"
+                          className="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 text-sm font-medium transition-colors flex items-center gap-2"
                         >
+                          <span>👁️</span>
                           Review
                         </Link>
                       </div>
@@ -129,20 +127,40 @@ export default function ReviewerDashboard() {
             </div>
 
             {/* Privacy Notice */}
-            <div className="mt-8 p-5 rounded-2xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 slide-up animate-delay-400">
+            <div className="mt-8 p-5 rounded-2xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 slide-up animate-delay-300">
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
+                  <span className="text-white text-lg">🔒</span>
                 </div>
                 <div>
                   <h3 className="font-semibold text-purple-400 mb-1">Confidential Review</h3>
                   <p className="text-sm text-gray-400 leading-relaxed">
-                    All review votes are encrypted and stored on-chain. Your identity and vote remain confidential unless disclosure is authorized by the admin.
+                    All review votes are encrypted and stored on-chain. Your identity and vote remain
+                    confidential unless disclosure is authorized by the admin.
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Voting Guide */}
+            <div className="grid md:grid-cols-3 gap-6 mt-8">
+              {[
+                { icon: '✅', label: 'Approve', desc: 'Evidence supports report', color: 'emerald' },
+                { icon: '❌', label: 'Reject', desc: 'Insufficient evidence', color: 'red' },
+                { icon: '⚠️', label: 'Escalate', desc: 'Needs senior review', color: 'amber' },
+              ].map((action) => (
+                <div
+                  key={action.label}
+                  className={`glass rounded-2xl p-5 text-center hover-lift transition-all duration-300 slide-up animate-delay-400 ${
+                    action.color === 'emerald' ? 'hover:border-emerald-500/50' :
+                    action.color === 'red' ? 'hover:border-red-500/50' : 'hover:border-amber-500/50'
+                  }`}
+                >
+                  <div className="text-3xl mb-3">{action.icon}</div>
+                  <div className="font-semibold mb-1">{action.label}</div>
+                  <div className="text-xs text-gray-500">{action.desc}</div>
+                </div>
+              ))}
             </div>
           </>
         )}
