@@ -263,7 +263,7 @@ async function main() {
   const escalations = await withRetries("Decrypt escalations", () =>
     cofheClient.decryptForTx(encryptedSummary[2]).withPermit(permit).execute()
   );
-  const averageSeverity = await withRetries("Decrypt average severity", () =>
+  const severityTotal = await withRetries("Decrypt severity total", () =>
     cofheClient.decryptForTx(encryptedSummary[3]).withPermit(permit).execute()
   );
 
@@ -273,8 +273,8 @@ async function main() {
       Number(approvals.decryptedValue),
       Number(rejects.decryptedValue),
       Number(escalations.decryptedValue),
-      Number(averageSeverity.decryptedValue),
-      [approvals.signature, rejects.signature, escalations.signature, averageSeverity.signature]
+      Number(severityTotal.decryptedValue),
+      [approvals.signature, rejects.signature, escalations.signature, severityTotal.signature]
     ),
     "Published verified consensus"
   );
