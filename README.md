@@ -58,10 +58,10 @@ LeakProof X is a **working on-chain whistleblowing and compliance reporting plat
 
 | Contract | Address | Purpose |
 |----------|---------|---------|
-| **AccessControl** | `0x498A44b098eD67Ec45ca3901797366B570710bda` | Role management |
-| **LeakProofCore** | `0xD31B4340A4A0FD0e27502B8AF5E17338678a0DdC` | Case storage |
-| **ReviewerHub** | `0xB4CA8e42b612caFA23b3853Cd80d758193114d83` | Voting system |
-| **DisclosureCtrl** | `0x03755dAF0761CD385fdEE0f980ac05433211052A` | Permissions |
+| **AccessControl** | `0x1b69a89aCaae7d4Aebd0b1fcEE50c89bf9547F66` | Role management |
+| **LeakProofCore** | `0x8CCDe2497ec6580077056d852E94752fF38A042E` | Case storage |
+| **ReviewerHub** | `0x5bD964D7CfABbb2A7BdF0202880C8d5AD86C50BA` | Voting system |
+| **DisclosureCtrl** | `0x599da2BbF6E94859E15B2eCD2b95f1eF1f9dCE49` | Permissions |
 
 ---
 
