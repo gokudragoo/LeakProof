@@ -9,6 +9,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        dark: {
+          900: '#0a0a0f',
+          800: '#111118',
+          700: '#1a1a24',
+          600: '#2a2a3a',
+        },
         primary: {
           50: '#f0f9ff',
           100: '#e0f2fe',
@@ -21,16 +27,13 @@ const config: Config = {
           800: '#075985',
           900: '#0c4a6e',
         },
-        dark: {
-          900: '#0a0a0f',
-          800: '#111118',
-          700: '#1a1a24',
-          600: '#2a2a3a',
-        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
+      },
+      animation: {
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
     },
   },
