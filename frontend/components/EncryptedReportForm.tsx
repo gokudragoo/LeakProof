@@ -75,7 +75,7 @@ export default function EncryptedReportForm({ walletAddress, onSuccess }: Encryp
         type="text"
         value={title}
         onChange={(event) => setTitle(event.target.value)}
-        className="w-full px-4 py-3 rounded-lg bg-dark-700 border border-gray-700 focus:border-primary-500 outline-none"
+        className="w-full px-4 py-3 rounded-2xl bg-slate-950/60 border border-white/10 focus:border-sky-500 outline-none"
         placeholder="Report title"
         required
       />
@@ -83,7 +83,7 @@ export default function EncryptedReportForm({ walletAddress, onSuccess }: Encryp
       <select
         value={category}
         onChange={(event) => setCategory(Number(event.target.value))}
-        className="w-full px-4 py-3 rounded-lg bg-dark-700 border border-gray-700 focus:border-primary-500 outline-none"
+        className="w-full px-4 py-3 rounded-2xl bg-slate-950/60 border border-white/10 focus:border-sky-500 outline-none"
       >
         {CASE_CATEGORY.map((label, index) => (
           <option key={label} value={index}>
@@ -95,7 +95,7 @@ export default function EncryptedReportForm({ walletAddress, onSuccess }: Encryp
       <textarea
         value={description}
         onChange={(event) => setDescription(event.target.value)}
-        className="w-full px-4 py-3 rounded-lg bg-dark-700 border border-gray-700 focus:border-primary-500 outline-none min-h-[150px]"
+        className="w-full px-4 py-3 rounded-2xl bg-slate-950/60 border border-white/10 focus:border-sky-500 outline-none min-h-[150px]"
         placeholder="Describe the incident"
         required
       />
@@ -106,7 +106,7 @@ export default function EncryptedReportForm({ walletAddress, onSuccess }: Encryp
             key={level}
             type="button"
             onClick={() => setSeverity(level)}
-            className={`w-12 h-12 rounded-lg font-semibold ${severity === level ? 'bg-primary-500 text-white' : 'bg-dark-800 border border-gray-700'}`}
+            className={`w-12 h-12 rounded-2xl font-semibold ${severity === level ? 'bg-sky-500 text-white' : 'bg-slate-950/60 border border-white/10'}`}
           >
             {level}
           </button>
@@ -116,17 +116,17 @@ export default function EncryptedReportForm({ walletAddress, onSuccess }: Encryp
       <input
         type="file"
         onChange={(event) => setEvidenceFile(event.target.files?.[0] ?? null)}
-        className="w-full px-4 py-3 rounded-lg bg-dark-700 border border-gray-700"
+        className="w-full px-4 py-3 rounded-2xl bg-slate-950/60 border border-white/10"
       />
 
       {status ? (
-        <div className="p-4 rounded-lg bg-primary-500/20 text-primary-300 text-sm">{status}</div>
+        <div className="p-4 rounded-2xl bg-sky-500/20 text-sky-300 text-sm">{status}</div>
       ) : null}
 
       <button
         type="submit"
         disabled={isPending || !cofheReady}
-        className="w-full py-4 rounded-lg bg-gradient-to-r from-primary-500 to-cyan-500 hover:from-primary-400 hover:to-cyan-400 disabled:from-gray-600 text-white font-semibold"
+        className="w-full py-4 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold"
       >
         {isPending ? 'Waiting for wallet...' : !cofheReady ? 'Connecting confidential client...' : 'Submit report'}
       </button>
