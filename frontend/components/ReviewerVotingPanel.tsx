@@ -22,12 +22,11 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
 
     try {
       const encryptedRecommendation = await encryptUint8(recommendation);
-      const encryptedSeverityScore = await encryptUint8(severityScore);
 
       await submitVote({
         caseId,
         recommendation: encryptedRecommendation,
-        severityScore: encryptedSeverityScore,
+        severityScore,
         notes: `${walletAddress}: ${notes}`.trim(),
       });
       setMessage('Vote submitted.');
