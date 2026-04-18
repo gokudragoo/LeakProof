@@ -7,6 +7,8 @@ import { ethers } from "ethers";
 import { Encryptable, FheTypes } from "@cofhe/sdk";
 import { createCofheClient, createCofheConfig } from "@cofhe/sdk/node";
 import { sepolia as cofheSepolia } from "@cofhe/sdk/chains";
+import { PermitUtils, SealingKey } from "@cofhe/sdk/permits";
+import naclModule from "tweetnacl";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { sepolia as viemSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -52,6 +54,41 @@ function requireEnv(name) {
 
 function normalizePrivateKey(value) {
   return value.startsWith("0x") ? value : `0x${value}`;
+}
+
+function toHexString(bytes) {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function createSelfPermit(publicClient, walletClient, issuer) {
+  const nacl = naclModule?.default ?? naclModule;
+  const sealingPairRaw = nacl.box.keyPair();
+  const permit = {
+    hash: PermitUtils.getHash({
+      type: "self",
+      issuer,
+      expiration: Math.round(Date.now() / 1000) + 60 * 60,
+      recipient: ethers.ZeroAddress,
+      validatorId: 0,
+      validatorContract: ethers.ZeroAddress,
+    }),
+    name: "Smoke Permit",
+    type: "self",
+    issuer,
+    expiration: Math.round(Date.now() / 1000) + 60 * 60,
+    recipient: ethers.ZeroAddress,
+    validatorId: 0,
+    validatorContract: ethers.ZeroAddress,
+    issuerSignature: "0x",
+    recipientSignature: "0x",
+    sealingPair: new SealingKey(
+      toHexString(sealingPairRaw.secretKey),
+      toHexString(sealingPairRaw.publicKey)
+    ),
+    _signedDomain: undefined,
+  };
+
+  return PermitUtils.sign(permit, publicClient, walletClient);
 }
 
 function findCaseId(receipt, coreAbi) {
@@ -113,9 +150,7 @@ async function main() {
   );
 
   await cofheClient.connect(publicClient, walletClient);
-  await cofheClient.permits.getOrCreateSelfPermit(undefined, undefined, {
-    issuer: wallet.address,
-  });
+  const permit = await createSelfPermit(publicClient, walletClient, wallet.address);
 
   const accessControl = new ethers.Contract(deployed.NEXT_PUBLIC_ACCESS_CONTROL, accessAbi, wallet);
   const core = new ethers.Contract(deployed.NEXT_PUBLIC_CORE, coreAbi, wallet);
@@ -149,7 +184,7 @@ async function main() {
   const encryptedSeverityHandle = await core.getEncryptedReporterSeverity(caseId);
   const decryptedReporterSeverity = await cofheClient
     .decryptForView(encryptedSeverityHandle, FheTypes.Uint8)
-    .withPermit()
+    .withPermit(permit)
     .execute();
 
   if (Number(decryptedReporterSeverity) !== 4) {
@@ -168,10 +203,10 @@ async function main() {
   const encryptedSummary = await reviewerHub.getEncryptedVoteSummary(caseId);
 
   const [approvals, rejects, escalations, averageSeverity] = await Promise.all([
-    cofheClient.decryptForTx(encryptedSummary[0]).withPermit().execute(),
-    cofheClient.decryptForTx(encryptedSummary[1]).withPermit().execute(),
-    cofheClient.decryptForTx(encryptedSummary[2]).withPermit().execute(),
-    cofheClient.decryptForTx(encryptedSummary[3]).withPermit().execute(),
+    cofheClient.decryptForTx(encryptedSummary[0]).withPermit(permit).execute(),
+    cofheClient.decryptForTx(encryptedSummary[1]).withPermit(permit).execute(),
+    cofheClient.decryptForTx(encryptedSummary[2]).withPermit(permit).execute(),
+    cofheClient.decryptForTx(encryptedSummary[3]).withPermit(permit).execute(),
   ]);
 
   await waitAndLog(
