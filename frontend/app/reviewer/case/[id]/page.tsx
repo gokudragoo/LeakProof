@@ -130,15 +130,14 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
     setError('');
 
     try {
-      setStatusLine('Encrypting confidential vote with CoFHE...');
+      setStatusLine('Encrypting confidential recommendation with CoFHE...');
       const encryptedRecommendation = await encryptUint8(recommendation);
-      const encryptedSeverityScore = await encryptUint8(severityScore);
 
       setStatusLine('Submitting vote on-chain...');
       await submitVote({
         caseId,
         recommendation: encryptedRecommendation,
-        severityScore: encryptedSeverityScore,
+        severityScore,
         notes: notes.trim(),
       });
 
