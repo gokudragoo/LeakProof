@@ -94,8 +94,8 @@ export function useEncryptedVoteSummary(caseId: number) {
     ? (transformEncryptedReturnTypes(
         REVIEWER_HUB_ABI,
         "getEncryptedVoteSummary",
-        data as readonly [`0x${string}`, `0x${string}`, `0x${string}`, `0x${string}`]
-      ) as readonly [EncryptedHandle, EncryptedHandle, EncryptedHandle, EncryptedHandle])
+        data as readonly [`0x${string}`, `0x${string}`, `0x${string}`]
+      ) as readonly [EncryptedHandle, EncryptedHandle, EncryptedHandle])
     : null;
 
   return {
@@ -198,7 +198,7 @@ export function usePublishConsensus() {
   const publishConsensus = async (
     caseId: number,
     summary: ConfidentialVoteSummary,
-    signatures: [`0x${string}`, `0x${string}`, `0x${string}`, `0x${string}`]
+    signatures: [`0x${string}`, `0x${string}`, `0x${string}`]
   ) => {
     if (!publicClient) {
       throw new Error("Wallet client unavailable");
@@ -213,7 +213,6 @@ export function usePublishConsensus() {
         summary.approvals,
         summary.rejects,
         summary.escalations,
-        summary.severityTotal,
         signatures,
       ],
     });
