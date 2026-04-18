@@ -1,20 +1,15 @@
-import { http, createConfig } from 'wagmi';
-import { sepolia } from 'wagmi/chains';
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
-import {
-  metaMaskWallet,
-  coinbaseWallet,
-  walletConnectWallet,
-} from '@rainbow-me/rainbowkit/wallets';
+import { mainnet, sepolia } from 'wagmi/chains';
 
 export const config = getDefaultConfig({
   appName: 'LeakProof X',
-  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'demo-project-id',
-  chains: [sepolia],
-  transports: {
-    [sepolia.id]: http(process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://rpc.sepolia.org'),
-  },
+  projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'demo',
+  chains: [sepolia, mainnet],
   ssr: true,
+  transports: {
+    [sepolia.id]: 'https://ethereum-sepolia.publicnode.com',
+    [mainnet.id]: 'https://eth.llamarpc.com',
+  },
 });
 
 declare module 'wagmi' {
