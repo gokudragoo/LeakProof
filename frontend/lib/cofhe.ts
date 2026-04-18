@@ -1,27 +1,16 @@
-'use client';
+export { createCofheConfig, createCofheClient } from '@cofhe/sdk/web';
+export { sepolia } from '@cofhe/sdk/chains';
+export { Encryptable, FheTypes } from '@cofhe/sdk';
 
-import { createCofheConfig, createCofheClient } from '@cofhe/sdk/web';
-import { sepolia } from '@cofhe/sdk/chains';
-
-export const cofheConfig = createCofheConfig({
-  environment: 'web',
-  supportedChains: [sepolia],
-  useWorkers: true,
-  mocks: {
-    decryptDelay: 0,
-    encryptDelay: [100, 100, 100, 500, 500],
-  },
-});
-
-export function createCofheClientInstance() {
-  return createCofheClient(cofheConfig);
+export function hexToBytes(hex: string): Uint8Array {
+  return new Uint8Array(Buffer.from(hex.replace('0x', ''), 'hex'));
 }
 
-let cofheClientInstance: ReturnType<typeof createCofheClient> | null = null;
+export function bytesToHex(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString('hex');
+}
 
-export function getCofheClient() {
-  if (!cofheClientInstance) {
-    cofheClientInstance = createCofheClientInstance();
-  }
-  return cofheClientInstance;
+export function formatAddress(addr: string, start = 6, end = 4): string {
+  if (!addr || addr.length < start + end) return addr;
+  return `${addr.slice(0, start)}...${addr.slice(-end)}`;
 }
