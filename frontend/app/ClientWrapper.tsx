@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Providers } from './providers';
 import SplashScreen from '@/components/SplashScreen';
+import { Providers } from './providers';
 
 const InteractiveCanvas = dynamic(() => import('@/components/InteractiveCanvas'), {
   ssr: false,
@@ -11,31 +11,20 @@ const InteractiveCanvas = dynamic(() => import('@/components/InteractiveCanvas')
 
 export default function ClientWrapper({ children }: { children: React.ReactNode }) {
   const [showSplash, setShowSplash] = useState(true);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       setShowSplash(false);
-    }, 3000);
+    }, 2600);
 
-    return () => clearTimeout(timer);
+    return () => window.clearTimeout(timer);
   }, []);
 
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
   return (
-    <>
-      {showSplash ? (
-        <SplashScreen onComplete={() => setShowSplash(false)} />
-      ) : (
-        <>
-          <InteractiveCanvas />
-          <Providers>{children}</Providers>
-        </>
-      )}
-    </>
+    <Providers>
+      <InteractiveCanvas />
+      {children}
+      {showSplash ? <SplashScreen onComplete={() => setShowSplash(false)} /> : null}
+    </Providers>
   );
 }

@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { Providers } from './providers';
-import './globals.css';
 import ClientWrapper from './ClientWrapper';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'LeakProof X | Privacy-First Whistleblowing Platform',
-  description: 'Secure, confidential whistleblowing on blockchain with Fhenix privacy technology.',
+  title: 'LeakProof X | On-chain whistleblowing workflow',
+  description:
+    'Submit whistleblower reports, review them on Ethereum Sepolia, and manage disclosure permissions with a verifiable workflow.',
 };
 
 export default function RootLayout({
