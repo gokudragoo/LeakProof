@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import { usePublicClient } from 'wagmi';
-import { CONTRACTS, CORE_ABI, REVIEWER_HUB_ABI } from '@/lib/contracts';
+import { useEffect, useState } from "react";
+import { usePublicClient } from "wagmi";
+import { CONTRACTS, CORE_ABI, REVIEWER_HUB_ABI } from "@/lib/contracts";
 
 export interface CaseCreatedEvent {
   caseId: bigint;
   reporter: `0x${string}`;
-  status: number;
+  category: number;
+  reportCid: string;
+  evidenceCid: string;
   timestamp: bigint;
 }
 
@@ -27,11 +29,8 @@ export interface ReviewerAssignedEvent {
 export interface VoteSubmittedEvent {
   caseId: bigint;
   reviewer: `0x${string}`;
-}
-
-export interface ConsensusReachedEvent {
-  caseId: bigint;
-  approvals: bigint;
+  recommendation: number;
+  severityScore: number;
 }
 
 export function useContractEvents() {
@@ -40,78 +39,74 @@ export function useContractEvents() {
   const [statusUpdatedEvents, setStatusUpdatedEvents] = useState<StatusUpdatedEvent[]>([]);
   const [reviewerAssignedEvents, setReviewerAssignedEvents] = useState<ReviewerAssignedEvent[]>([]);
   const [voteSubmittedEvents, setVoteSubmittedEvents] = useState<VoteSubmittedEvent[]>([]);
-  const [consensusReachedEvents, setConsensusReachedEvents] = useState<ConsensusReachedEvent[]>([]);
 
   useEffect(() => {
-    if (!publicClient) return;
+    if (!publicClient) {
+      return;
+    }
 
     const unwatchCaseCreated = publicClient.watchContractEvent({
-      address: CONTRACTS.CORE as `0x${string}`,
-      abi: CORE_ABI as any,
-      eventName: 'CaseCreated',
+      address: CONTRACTS.CORE,
+      abi: CORE_ABI,
+      eventName: "CaseCreated",
       onLogs: (logs) => {
-        const events: CaseCreatedEvent[] = logs.map((log: any) => ({
-          caseId: log.args?.caseId ?? 0n,
-          reporter: log.args?.reporter ?? '0x',
-          status: log.args?.status ?? 0,
-          timestamp: log.args?.timestamp ?? 0n,
+        const events = logs.map((log) => ({
+          caseId: log.args.caseId ?? 0n,
+          reporter: (log.args.reporter ?? CONTRACTS.ACCESS_CONTROL) as `0x${string}`,
+          category: Number(log.args.category ?? 0),
+          reportCid: String(log.args.reportCid ?? ""),
+          evidenceCid: String(log.args.evidenceCid ?? ""),
+          timestamp: log.args.timestamp ?? 0n,
         }));
-        setCaseCreatedEvents((prev) => [...events, ...prev]);
+
+        setCaseCreatedEvents((previous) => [...events, ...previous]);
       },
     });
 
     const unwatchStatusUpdated = publicClient.watchContractEvent({
-      address: CONTRACTS.CORE as `0x${string}`,
-      abi: CORE_ABI as any,
-      eventName: 'StatusUpdated',
+      address: CONTRACTS.CORE,
+      abi: CORE_ABI,
+      eventName: "StatusUpdated",
       onLogs: (logs) => {
-        const events: StatusUpdatedEvent[] = logs.map((log: any) => ({
-          caseId: log.args?.caseId ?? 0n,
-          oldStatus: log.args?.oldStatus ?? 0,
-          newStatus: log.args?.newStatus ?? 0,
-          updater: log.args?.updater ?? '0x',
+        const events = logs.map((log) => ({
+          caseId: log.args.caseId ?? 0n,
+          oldStatus: Number(log.args.oldStatus ?? 0),
+          newStatus: Number(log.args.newStatus ?? 0),
+          updater: (log.args.updater ?? CONTRACTS.ACCESS_CONTROL) as `0x${string}`,
         }));
-        setStatusUpdatedEvents((prev) => [...events, ...prev]);
+
+        setStatusUpdatedEvents((previous) => [...events, ...previous]);
       },
     });
 
     const unwatchReviewerAssigned = publicClient.watchContractEvent({
-      address: CONTRACTS.REVIEWER_HUB as `0x${string}`,
-      abi: REVIEWER_HUB_ABI as any,
-      eventName: 'ReviewerAssigned',
+      address: CONTRACTS.REVIEWER_HUB,
+      abi: REVIEWER_HUB_ABI,
+      eventName: "ReviewerAssigned",
       onLogs: (logs) => {
-        const events: ReviewerAssignedEvent[] = logs.map((log: any) => ({
-          caseId: log.args?.caseId ?? 0n,
-          reviewer: log.args?.reviewer ?? '0x',
-          assigner: log.args?.assigner ?? '0x',
+        const events = logs.map((log) => ({
+          caseId: log.args.caseId ?? 0n,
+          reviewer: (log.args.reviewer ?? CONTRACTS.ACCESS_CONTROL) as `0x${string}`,
+          assigner: (log.args.assigner ?? CONTRACTS.ACCESS_CONTROL) as `0x${string}`,
         }));
-        setReviewerAssignedEvents((prev) => [...events, ...prev]);
+
+        setReviewerAssignedEvents((previous) => [...events, ...previous]);
       },
     });
 
     const unwatchVoteSubmitted = publicClient.watchContractEvent({
-      address: CONTRACTS.REVIEWER_HUB as `0x${string}`,
-      abi: REVIEWER_HUB_ABI as any,
-      eventName: 'VoteSubmitted',
+      address: CONTRACTS.REVIEWER_HUB,
+      abi: REVIEWER_HUB_ABI,
+      eventName: "VoteSubmitted",
       onLogs: (logs) => {
-        const events: VoteSubmittedEvent[] = logs.map((log: any) => ({
-          caseId: log.args?.caseId ?? 0n,
-          reviewer: log.args?.reviewer ?? '0x',
+        const events = logs.map((log) => ({
+          caseId: log.args.caseId ?? 0n,
+          reviewer: (log.args.reviewer ?? CONTRACTS.ACCESS_CONTROL) as `0x${string}`,
+          recommendation: Number(log.args.recommendation ?? 0),
+          severityScore: Number(log.args.severityScore ?? 0),
         }));
-        setVoteSubmittedEvents((prev) => [...events, ...prev]);
-      },
-    });
 
-    const unwatchConsensusReached = publicClient.watchContractEvent({
-      address: CONTRACTS.REVIEWER_HUB as `0x${string}`,
-      abi: REVIEWER_HUB_ABI as any,
-      eventName: 'ConsensusReached',
-      onLogs: (logs) => {
-        const events: ConsensusReachedEvent[] = logs.map((log: any) => ({
-          caseId: log.args?.caseId ?? 0n,
-          approvals: log.args?.approvals ?? 0n,
-        }));
-        setConsensusReachedEvents((prev) => [...events, ...prev]);
+        setVoteSubmittedEvents((previous) => [...events, ...previous]);
       },
     });
 
@@ -120,7 +115,6 @@ export function useContractEvents() {
       unwatchStatusUpdated();
       unwatchReviewerAssigned();
       unwatchVoteSubmitted();
-      unwatchConsensusReached();
     };
   }, [publicClient]);
 
@@ -129,58 +123,5 @@ export function useContractEvents() {
     statusUpdatedEvents,
     reviewerAssignedEvents,
     voteSubmittedEvents,
-    consensusReachedEvents,
   };
-}
-
-export function useRecentActivity(limit = 10) {
-  const {
-    caseCreatedEvents,
-    statusUpdatedEvents,
-    reviewerAssignedEvents,
-    voteSubmittedEvents,
-    consensusReachedEvents,
-  } = useContractEvents();
-
-  const activity = [
-    ...caseCreatedEvents.map((e) => ({
-      type: 'case_created' as const,
-      caseId: Number(e.caseId),
-      address: e.reporter,
-      timestamp: Number(e.timestamp),
-      description: `New case #${e.caseId} submitted`,
-    })),
-    ...statusUpdatedEvents.map((e) => ({
-      type: 'status_updated' as const,
-      caseId: Number(e.caseId),
-      address: e.updater,
-      timestamp: 0,
-      description: `Case #${e.caseId} status changed to ${e.newStatus}`,
-    })),
-    ...reviewerAssignedEvents.map((e) => ({
-      type: 'reviewer_assigned' as const,
-      caseId: Number(e.caseId),
-      address: e.assigner,
-      timestamp: 0,
-      description: `Reviewer assigned to case #${e.caseId}`,
-    })),
-    ...voteSubmittedEvents.map((e) => ({
-      type: 'vote_submitted' as const,
-      caseId: Number(e.caseId),
-      address: e.reviewer,
-      timestamp: 0,
-      description: `Vote submitted for case #${e.caseId}`,
-    })),
-    ...consensusReachedEvents.map((e) => ({
-      type: 'consensus_reached' as const,
-      caseId: Number(e.caseId),
-      address: '0x' as `0x${string}`,
-      timestamp: 0,
-      description: `Consensus reached on case #${e.caseId}`,
-    })),
-  ]
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, limit);
-
-  return activity;
 }
