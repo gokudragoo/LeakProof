@@ -39,7 +39,7 @@ export default function EvidenceUploader({ walletAddress, onUploadComplete }: Ev
     <div className="space-y-4">
       <div
         onClick={() => fileInputRef.current?.click()}
-        className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center hover:border-primary-500/50 transition-colors cursor-pointer"
+        className="border-2 border-dashed border-white/10 rounded-2xl p-8 text-center hover:border-sky-500/50 transition-colors cursor-pointer"
       >
         <input
           ref={fileInputRef}
@@ -59,18 +59,18 @@ export default function EvidenceUploader({ walletAddress, onUploadComplete }: Ev
           type="button"
           onClick={handleUpload}
           disabled={isUploading}
-          className="w-full py-3 rounded-lg bg-primary-500 hover:bg-primary-600 disabled:bg-gray-600 text-white font-medium transition-colors"
+          className="w-full py-3 rounded-2xl bg-sky-500 hover:bg-sky-600 disabled:bg-gray-600 text-white font-medium transition-colors"
         >
           {isUploading ? 'Uploading...' : 'Upload to IPFS'}
         </button>
       ) : null}
 
       {uploadStatus ? (
-        <div className="p-3 rounded-lg bg-primary-500/20 text-primary-300 text-sm">{uploadStatus}</div>
+        <div className="p-3 rounded-2xl bg-sky-500/20 text-sky-300 text-sm">{uploadStatus}</div>
       ) : null}
 
       {cid ? (
-        <div className="p-3 rounded-lg bg-dark-700 border border-gray-700">
+        <div className="p-3 rounded-2xl bg-slate-950/50 border border-white/10">
           <div className="text-xs text-gray-400 mb-1">IPFS CID</div>
           <div className="font-mono text-sm break-all">{cid}</div>
         </div>
