@@ -8,11 +8,13 @@ import { CASE_CATEGORY } from '@/lib/contracts';
 import { uploadFileToIPFS, uploadJsonToIPFS } from '@/lib/pinata';
 import { EMPTY_DIGEST, sha256File, sha256Text, shortAddress } from '@/lib/report-utils';
 import { useCreateCase } from '@/hooks/useCaseRegistry';
+import { useCofheClient } from '@/hooks/useCofheClient';
 import type { ReportPayload } from '@/types';
 
 export default function SubmitReport() {
   const { isConnected, address } = useAccount();
   const { createCase, isPending, txHash } = useCreateCase();
+  const { encryptUint8, isReady: cofheReady } = useCofheClient();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -60,7 +62,6 @@ export default function SubmitReport() {
       const reportPayload: ReportPayload = {
         title: title.trim(),
         description: description.trim(),
-        severity,
         category,
         createdAt: new Date().toISOString(),
         reporterAddress: address,
@@ -80,11 +81,15 @@ export default function SubmitReport() {
         evidenceDigest = await sha256File(evidenceFile);
       }
 
+      setStatusLine('Encrypting confidential severity with CoFHE...');
+      const reporterSeverity = await encryptUint8(severity);
+
       setStatusLine('Submitting the case on-chain...');
       const result = await createCase({
         reportCid,
         reportDigest,
         category,
+        reporterSeverity,
         evidenceCid,
         evidenceDigest,
       });
@@ -116,8 +121,8 @@ export default function SubmitReport() {
           </Link>
           <h1 className="text-4xl font-bold mt-3">Submit a report</h1>
           <p className="text-gray-400 mt-2 max-w-2xl">
-            The report body is uploaded to IPFS, hashed in the browser, and the CID plus digest are
-            recorded on-chain. You will only see success after the transaction is confirmed.
+            The report body is stored through the IPFS flow, while the submitted severity is encrypted
+            with CoFHE before it reaches the contract. Success only appears after on-chain confirmation.
           </p>
         </div>
 
@@ -227,10 +232,10 @@ export default function SubmitReport() {
 
             <button
               type="submit"
-              disabled={!isConnected || isPending}
+              disabled={!isConnected || isPending || !cofheReady}
               className="w-full py-4 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 text-white font-semibold disabled:from-gray-600 disabled:to-gray-600"
             >
-              {isPending ? 'Waiting for wallet...' : 'Submit report'}
+              {isPending ? 'Waiting for wallet...' : !cofheReady ? 'Connecting confidential client...' : 'Submit report'}
             </button>
           </form>
         )}
