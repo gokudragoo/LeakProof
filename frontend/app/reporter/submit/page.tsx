@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
+import Logo from '@/components/Logo';
 import { CASE_CATEGORY } from '@/lib/contracts';
 import { uploadFileToIPFS, uploadJsonToIPFS } from '@/lib/pinata';
 import { EMPTY_DIGEST, sha256File, sha256Text, shortAddress } from '@/lib/report-utils';
