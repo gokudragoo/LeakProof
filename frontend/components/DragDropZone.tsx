@@ -89,10 +89,10 @@ export default function DragDropZone({
   return (
     <div
       className={`
-        relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300
+        relative border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-300
         ${isDragging
-          ? 'border-primary-400 bg-primary-500/10 scale-[1.02]'
-          : 'border-gray-700 hover:border-gray-500 bg-dark-800/30'
+          ? 'border-sky-400 bg-sky-500/10 scale-[1.02]'
+          : 'border-white/10 hover:border-white/30 bg-slate-950/30'
         }
       `}
       onDragEnter={handleDragEnter}
@@ -116,7 +116,7 @@ export default function DragDropZone({
         <div className={`mb-4 transition-transform duration-300 ${isDragging ? 'scale-110' : ''}`}>
           <svg
             className={`w-16 h-16 mx-auto transition-colors duration-300 ${
-              isDragging ? 'text-primary-400' : 'text-gray-500'
+              isDragging ? 'text-sky-400' : 'text-gray-500'
             }`}
             fill="none"
             viewBox="0 0 24 24"
@@ -133,7 +133,7 @@ export default function DragDropZone({
 
         <p className="text-gray-400 mb-2">
           {isDragging ? (
-            <span className="text-primary-400 font-medium">Drop files here</span>
+            <span className="text-sky-400 font-medium">Drop files here</span>
           ) : (
             'Drag & drop files or click to browse'
           )}
@@ -148,10 +148,10 @@ export default function DragDropZone({
           {files.map((fileData, index) => (
             <div
               key={index}
-              className="flex items-center gap-3 p-3 rounded-lg bg-dark-700/50 border border-gray-700 group"
+              className="flex items-center gap-3 p-3 rounded-2xl bg-slate-950/50 border border-white/10 group"
             >
-              <div className="w-10 h-10 rounded-lg bg-primary-500/20 flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="w-10 h-10 rounded-2xl bg-sky-500/20 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
@@ -165,7 +165,7 @@ export default function DragDropZone({
 
               <button
                 onClick={() => removeFile(index)}
-                className="p-2 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                className="p-2 rounded-2xl hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
