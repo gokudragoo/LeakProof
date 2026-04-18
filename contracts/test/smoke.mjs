@@ -1,0 +1,212 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+import dotenv from "dotenv";
+import { ethers } from "ethers";
+import { Encryptable, FheTypes } from "@cofhe/sdk";
+import { createCofheClient, createCofheConfig } from "@cofhe/sdk/node";
+import { sepolia as cofheSepolia } from "@cofhe/sdk/chains";
+import { createPublicClient, createWalletClient, http } from "viem";
+import { sepolia as viemSepolia } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const contractsDir = path.resolve(__dirname, "..");
+const repoDir = path.resolve(contractsDir, "..");
+
+dotenv.config({ path: path.join(repoDir, ".env") });
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function readEnvFile(filePath) {
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  const env = {};
+
+  for (const line of lines) {
+    if (!line || line.trim().startsWith("#")) {
+      continue;
+    }
+
+    const separator = line.indexOf("=");
+    if (separator === -1) {
+      continue;
+    }
+
+    env[line.slice(0, separator)] = line.slice(separator + 1);
+  }
+
+  return env;
+}
+
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+function normalizePrivateKey(value) {
+  return value.startsWith("0x") ? value : `0x${value}`;
+}
+
+function findCaseId(receipt, coreAbi) {
+  const iface = new ethers.Interface(coreAbi);
+
+  for (const log of receipt.logs) {
+    try {
+      const parsed = iface.parseLog(log);
+      if (parsed?.name === "CaseCreated") {
+        return Number(parsed.args.caseId);
+      }
+    } catch {
+      // Ignore unrelated logs.
+    }
+  }
+
+  throw new Error("Unable to parse CaseCreated from receipt");
+}
+
+async function waitAndLog(txPromise, label) {
+  const tx = await txPromise;
+  console.log(`${label}: ${tx.hash}`);
+  return tx.wait();
+}
+
+async function main() {
+  const rpcUrl = requireEnv("SEPOLIA_RPC_URL");
+  const privateKey = normalizePrivateKey(requireEnv("PRIVATE_KEY"));
+  const deployed = readEnvFile(path.join(contractsDir, ".env.deployed"));
+
+  const accessAbi = readJson(
+    path.join(contractsDir, "artifacts", "contracts", "AccessControl.sol", "LeakProofAccessControl.json")
+  ).abi;
+  const coreAbi = readJson(
+    path.join(contractsDir, "artifacts", "contracts", "LeakProofCore.sol", "LeakProofCore.json")
+  ).abi;
+  const reviewerHubAbi = readJson(
+    path.join(contractsDir, "artifacts", "contracts", "ReviewerHub.sol", "ReviewerHub.json")
+  ).abi;
+
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const wallet = new ethers.Wallet(privateKey, provider);
+
+  const publicClient = createPublicClient({
+    chain: viemSepolia,
+    transport: http(rpcUrl),
+  });
+
+  const walletClient = createWalletClient({
+    account: privateKeyToAccount(privateKey),
+    chain: viemSepolia,
+    transport: http(rpcUrl),
+  });
+
+  const cofheClient = createCofheClient(
+    createCofheConfig({
+      supportedChains: [cofheSepolia],
+    })
+  );
+
+  await cofheClient.connect(publicClient, walletClient);
+  await cofheClient.permits.getOrCreateSelfPermit(undefined, undefined, {
+    issuer: wallet.address,
+  });
+
+  const accessControl = new ethers.Contract(deployed.NEXT_PUBLIC_ACCESS_CONTROL, accessAbi, wallet);
+  const core = new ethers.Contract(deployed.NEXT_PUBLIC_CORE, coreAbi, wallet);
+  const reviewerHub = new ethers.Contract(deployed.NEXT_PUBLIC_REVIEWER_HUB, reviewerHubAbi, wallet);
+
+  if (!(await accessControl.isReviewer(wallet.address))) {
+    await waitAndLog(accessControl.grantReviewerRole(wallet.address), "Granted reviewer role");
+  }
+
+  const [encryptedReporterSeverity] = await cofheClient
+    .encryptInputs([Encryptable.uint8(4n)])
+    .execute();
+
+  const createReceipt = await waitAndLog(
+    core.createCase(
+      `bafy-smoke-${Date.now()}`,
+      ethers.keccak256(ethers.toUtf8Bytes(`smoke-${Date.now()}`)),
+      0,
+      encryptedReporterSeverity,
+      "",
+      ethers.ZeroHash
+    ),
+    "Created confidential case"
+  );
+
+  const caseId = findCaseId(createReceipt, coreAbi);
+
+  await waitAndLog(reviewerHub.setApprovalThreshold(caseId, 1), "Set approval threshold");
+  await waitAndLog(reviewerHub.assignReviewer(caseId, wallet.address), "Assigned reviewer");
+
+  const encryptedSeverityHandle = await core.getEncryptedReporterSeverity(caseId);
+  const decryptedReporterSeverity = await cofheClient
+    .decryptForView(encryptedSeverityHandle, FheTypes.Uint8)
+    .withPermit()
+    .execute();
+
+  if (Number(decryptedReporterSeverity) !== 4) {
+    throw new Error(`Unexpected confidential reporter severity: ${decryptedReporterSeverity}`);
+  }
+
+  const [encryptedRecommendation, encryptedVoteSeverity] = await cofheClient
+    .encryptInputs([Encryptable.uint8(1n), Encryptable.uint8(5n)])
+    .execute();
+
+  await waitAndLog(
+    reviewerHub.submitVote(caseId, encryptedRecommendation, encryptedVoteSeverity, "smoke-review"),
+    "Submitted confidential vote"
+  );
+
+  const encryptedSummary = await reviewerHub.getEncryptedVoteSummary(caseId);
+
+  const [approvals, rejects, escalations, averageSeverity] = await Promise.all([
+    cofheClient.decryptForTx(encryptedSummary[0]).withPermit().execute(),
+    cofheClient.decryptForTx(encryptedSummary[1]).withPermit().execute(),
+    cofheClient.decryptForTx(encryptedSummary[2]).withPermit().execute(),
+    cofheClient.decryptForTx(encryptedSummary[3]).withPermit().execute(),
+  ]);
+
+  await waitAndLog(
+    reviewerHub.publishConsensus(
+      caseId,
+      Number(approvals.decryptedValue),
+      Number(rejects.decryptedValue),
+      Number(escalations.decryptedValue),
+      Number(averageSeverity.decryptedValue),
+      [approvals.signature, rejects.signature, escalations.signature, averageSeverity.signature]
+    ),
+    "Published verified consensus"
+  );
+
+  const caseData = await core.getCase(caseId);
+  const status = Number(caseData[8]);
+  const approvalCount = Number(caseData[11]);
+  const averageSeverityScore = Number(caseData[14]);
+
+  if (status !== 4) {
+    throw new Error(`Expected case status Verified (4), received ${status}`);
+  }
+
+  if (approvalCount !== 1) {
+    throw new Error(`Expected approvalCount 1, received ${approvalCount}`);
+  }
+
+  if (averageSeverityScore !== 5) {
+    throw new Error(`Expected averageSeverityScore 5, received ${averageSeverityScore}`);
+  }
+
+  console.log(`Smoke test passed for case #${caseId}`);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
