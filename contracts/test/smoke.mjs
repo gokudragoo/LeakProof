@@ -7,7 +7,7 @@ import { ethers } from "ethers";
 import { Encryptable, FheTypes } from "@cofhe/sdk";
 import { createCofheClient, createCofheConfig } from "@cofhe/sdk/node";
 import { sepolia as cofheSepolia } from "@cofhe/sdk/chains";
-import { PermitUtils, SealingKey } from "@cofhe/sdk/permits";
+import { PermitUtils } from "@cofhe/sdk/permits";
 import naclModule from "tweetnacl";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { sepolia as viemSepolia } from "viem/chains";
@@ -60,14 +60,49 @@ function toHexString(bytes) {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function createSelfPermit(publicClient, walletClient, issuer) {
+function fromHexString(hexString) {
+  const clean = hexString.replace(/^0x/, "");
+  const matches = clean.match(/.{1,2}/g) ?? [];
+  return new Uint8Array(matches.map((byte) => Number.parseInt(byte, 16)));
+}
+
+function createSealingPair() {
   const nacl = naclModule?.default ?? naclModule;
-  const sealingPairRaw = nacl.box.keyPair();
+  const raw = nacl.box.keyPair();
+  const privateKey = toHexString(raw.secretKey);
+  const publicKey = toHexString(raw.publicKey);
+
+  return {
+    privateKey,
+    publicKey,
+    serialize() {
+      return { privateKey, publicKey };
+    },
+    unseal(ciphertext) {
+      const nonce = ciphertext.nonce instanceof Uint8Array ? ciphertext.nonce : new Uint8Array(ciphertext.nonce);
+      const ephemPublicKey =
+        ciphertext.public_key instanceof Uint8Array
+          ? ciphertext.public_key
+          : new Uint8Array(ciphertext.public_key);
+      const data = ciphertext.data instanceof Uint8Array ? ciphertext.data : new Uint8Array(ciphertext.data);
+      const decrypted = nacl.box.open(data, nonce, ephemPublicKey, fromHexString(privateKey));
+
+      if (!decrypted) {
+        throw new Error("Failed to unseal permit ciphertext");
+      }
+
+      return BigInt(`0x${toHexString(decrypted)}`);
+    },
+  };
+}
+
+async function createSelfPermit(publicClient, walletClient, issuer) {
+  const expiration = Math.round(Date.now() / 1000) + 60 * 60;
   const permit = {
     hash: PermitUtils.getHash({
       type: "self",
       issuer,
-      expiration: Math.round(Date.now() / 1000) + 60 * 60,
+      expiration,
       recipient: ethers.ZeroAddress,
       validatorId: 0,
       validatorContract: ethers.ZeroAddress,
@@ -75,16 +110,13 @@ async function createSelfPermit(publicClient, walletClient, issuer) {
     name: "Smoke Permit",
     type: "self",
     issuer,
-    expiration: Math.round(Date.now() / 1000) + 60 * 60,
+    expiration,
     recipient: ethers.ZeroAddress,
     validatorId: 0,
     validatorContract: ethers.ZeroAddress,
     issuerSignature: "0x",
     recipientSignature: "0x",
-    sealingPair: new SealingKey(
-      toHexString(sealingPairRaw.secretKey),
-      toHexString(sealingPairRaw.publicKey)
-    ),
+    sealingPair: createSealingPair(),
     _signedDomain: undefined,
   };
 
