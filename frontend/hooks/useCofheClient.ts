@@ -91,7 +91,7 @@ export function useCofheClient() {
       ctHash: encrypted.ctHash,
       securityZone: encrypted.securityZone,
       utype: encrypted.utype,
-      signature: encrypted.signature,
+      signature: encrypted.signature as `0x${string}`,
     };
   };
 
