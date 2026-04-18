@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.25;
+
+import {FHE, InEuint8, euint8} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 import "./AccessControl.sol";
 
@@ -31,6 +33,7 @@ contract LeakProofCore {
         string reportCid;
         bytes32 reportDigest;
         uint8 category;
+        euint8 reporterSeverity;
         string evidenceCid;
         bytes32 evidenceDigest;
         address reporter;
@@ -62,6 +65,7 @@ contract LeakProofCore {
         uint256 timestamp
     );
     event ReviewerRegistered(uint256 indexed caseId, address indexed reviewer);
+    event VoteProgressed(uint256 indexed caseId, uint256 voteCount);
     event VoteTallied(
         uint256 indexed caseId,
         uint256 voteCount,
@@ -76,6 +80,7 @@ contract LeakProofCore {
         CaseStatus newStatus,
         address indexed updater
     );
+    event ConfidentialAccessAuthorized(uint256 indexed caseId, address indexed viewer);
 
     modifier onlyAdmin() {
         require(accessControl.isAdmin(msg.sender), "Admin only");
@@ -107,6 +112,7 @@ contract LeakProofCore {
         string calldata reportCid,
         bytes32 reportDigest,
         uint8 category,
+        InEuint8 calldata reporterSeverity,
         string calldata evidenceCid,
         bytes32 evidenceDigest
     ) external returns (uint256) {
@@ -115,11 +121,13 @@ contract LeakProofCore {
 
         caseCount += 1;
         uint256 newCaseId = caseCount;
+        euint8 encryptedReporterSeverity = FHE.asEuint8(reporterSeverity);
 
         cases[newCaseId] = Case({
             reportCid: reportCid,
             reportDigest: reportDigest,
             category: category,
+            reporterSeverity: encryptedReporterSeverity,
             evidenceCid: evidenceCid,
             evidenceDigest: evidenceDigest,
             reporter: msg.sender,
@@ -135,9 +143,12 @@ contract LeakProofCore {
             exists: true
         });
 
+        FHE.allowThis(cases[newCaseId].reporterSeverity);
+        FHE.allow(cases[newCaseId].reporterSeverity, msg.sender);
         reporterCases[msg.sender].push(newCaseId);
 
         emit CaseCreated(newCaseId, msg.sender, category, reportCid, evidenceCid, block.timestamp);
+        emit ConfidentialAccessAuthorized(newCaseId, msg.sender);
         return newCaseId;
     }
 
@@ -153,12 +164,38 @@ contract LeakProofCore {
         caseReviewers[caseId].push(reviewer);
         cases[caseId].reviewerCount += 1;
         cases[caseId].updatedAt = uint64(block.timestamp);
+        FHE.allow(cases[caseId].reporterSeverity, reviewer);
 
         if (cases[caseId].status == CaseStatus.Submitted) {
             _setStatus(caseId, CaseStatus.UnderReview, msg.sender);
         }
 
         emit ReviewerRegistered(caseId, reviewer);
+        emit ConfidentialAccessAuthorized(caseId, reviewer);
+    }
+
+    function authorizeCaseConfidentialAccess(uint256 caseId) external caseMustExist(caseId) {
+        Case storage caseItem = cases[caseId];
+
+        require(
+            accessControl.isAdmin(msg.sender) ||
+                msg.sender == caseItem.reporter ||
+                reviewerAssigned[caseId][msg.sender],
+            "Not authorized"
+        );
+
+        FHE.allow(caseItem.reporterSeverity, msg.sender);
+        emit ConfidentialAccessAuthorized(caseId, msg.sender);
+    }
+
+    function recordVoteProgress(uint256 caseId, uint32 voteCount)
+        external
+        onlyReviewerHub
+        caseMustExist(caseId)
+    {
+        cases[caseId].voteCount = voteCount;
+        cases[caseId].updatedAt = uint64(block.timestamp);
+        emit VoteProgressed(caseId, voteCount);
     }
 
     function recordVoteTally(
@@ -260,6 +297,15 @@ contract LeakProofCore {
             caseItem.escalationCount,
             caseItem.averageSeverityScore
         );
+    }
+
+    function getEncryptedReporterSeverity(uint256 caseId)
+        external
+        view
+        caseMustExist(caseId)
+        returns (euint8)
+    {
+        return cases[caseId].reporterSeverity;
     }
 
     function getCaseStatus(uint256 caseId) external view caseMustExist(caseId) returns (CaseStatus) {
