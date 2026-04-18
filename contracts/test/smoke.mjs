@@ -146,6 +146,27 @@ async function waitAndLog(txPromise, label) {
   return tx.wait();
 }
 
+async function withRetries(label, fn, attempts = 6, delayMs = 5000) {
+  let lastError = null;
+
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const status = error?.context?.status;
+      if (status !== 428 || index === attempts - 1) {
+        throw error;
+      }
+
+      console.log(`${label}: threshold network not ready yet, retrying in ${delayMs}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  throw lastError;
+}
+
 async function main() {
   const rpcUrl = requireEnv("SEPOLIA_RPC_URL");
   const privateKey = normalizePrivateKey(requireEnv("PRIVATE_KEY"));
@@ -214,10 +235,9 @@ async function main() {
   await waitAndLog(reviewerHub.assignReviewer(caseId, wallet.address), "Assigned reviewer");
 
   const encryptedSeverityHandle = await core.getEncryptedReporterSeverity(caseId);
-  const decryptedReporterSeverity = await cofheClient
-    .decryptForView(encryptedSeverityHandle, FheTypes.Uint8)
-    .withPermit(permit)
-    .execute();
+  const decryptedReporterSeverity = await withRetries("Decrypt reporter severity", () =>
+    cofheClient.decryptForView(encryptedSeverityHandle, FheTypes.Uint8).withPermit(permit).execute()
+  );
 
   if (Number(decryptedReporterSeverity) !== 4) {
     throw new Error(`Unexpected confidential reporter severity: ${decryptedReporterSeverity}`);
@@ -234,12 +254,18 @@ async function main() {
 
   const encryptedSummary = await reviewerHub.getEncryptedVoteSummary(caseId);
 
-  const [approvals, rejects, escalations, averageSeverity] = await Promise.all([
-    cofheClient.decryptForTx(encryptedSummary[0]).withPermit(permit).execute(),
-    cofheClient.decryptForTx(encryptedSummary[1]).withPermit(permit).execute(),
-    cofheClient.decryptForTx(encryptedSummary[2]).withPermit(permit).execute(),
-    cofheClient.decryptForTx(encryptedSummary[3]).withPermit(permit).execute(),
-  ]);
+  const approvals = await withRetries("Decrypt approvals", () =>
+    cofheClient.decryptForTx(encryptedSummary[0]).withPermit(permit).execute()
+  );
+  const rejects = await withRetries("Decrypt rejects", () =>
+    cofheClient.decryptForTx(encryptedSummary[1]).withPermit(permit).execute()
+  );
+  const escalations = await withRetries("Decrypt escalations", () =>
+    cofheClient.decryptForTx(encryptedSummary[2]).withPermit(permit).execute()
+  );
+  const averageSeverity = await withRetries("Decrypt average severity", () =>
+    cofheClient.decryptForTx(encryptedSummary[3]).withPermit(permit).execute()
+  );
 
   await waitAndLog(
     reviewerHub.publishConsensus(
