@@ -39,7 +39,7 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
       const encryptedInputs = await encryptVote(
         {
           items: [
-            { data: voteValue, utype: 2, securityZone: 0 },
+            { data: BigInt(voteValue), utype: 2, securityZone: 0 },
             { data: BigInt(vote.severityScore), utype: 2, securityZone: 0 },
           ],
           account: walletAddress,
