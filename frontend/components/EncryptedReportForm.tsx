@@ -44,17 +44,13 @@ export default function EncryptedReportForm({ walletAddress, onSuccess }: Encryp
       setStatus('Encrypting report with FHE (Zero-Knowledge Proofs)...');
       const encryptedInputs = await encryptReport(
         {
-          inputs: [
+          items: [
             { data: titleHash, utype: 6, securityZone: 0 },
             { data: descHash, utype: 6, securityZone: 0 },
             { data: formData.severity, utype: 2, securityZone: 0 },
             { data: formData.category, utype: 2, securityZone: 0 },
           ],
-        },
-        {
           account: walletAddress,
-          walletClient,
-          publicClient,
         }
       );
 
