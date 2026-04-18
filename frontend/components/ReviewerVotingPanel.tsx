@@ -37,11 +37,12 @@ export default function ReviewerVotingPanel({ caseId, walletAddress }: ReviewerV
       const voteValue = vote.recommendation === 'approve' ? 1 : vote.recommendation === 'reject' ? 2 : 3;
 
       const encryptedInputs = await encryptVote(
-        { inputs: [{ data: voteValue, utype: 2, securityZone: 0 }, { data: vote.severityScore, utype: 2, securityZone: 0 }] },
         {
+          items: [
+            { data: voteValue, utype: 2, securityZone: 0 },
+            { data: vote.severityScore, utype: 2, securityZone: 0 },
+          ],
           account: walletAddress,
-          walletClient,
-          publicClient: publicClient!,
         }
       );
 
