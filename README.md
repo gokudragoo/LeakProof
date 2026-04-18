@@ -1,73 +1,95 @@
-# LeakProof X 🔒
+# 🔒 LeakProof X
 
 **Privacy-First Whistleblowing Platform on Ethereum**
 
-LeakProof X is a production-ready, on-chain whistleblowing and compliance reporting platform built on Fhenix/Ethereum Sepolia. It enables secure, confidential reporting with encrypted smart contracts, private reviewer voting, and selective disclosure.
-
-![LeakProof X Banner](https://via.placeholder.com/1200x400/0a0a0f/0ea5e9?text=LeakProof+X+Privacy+Whistleblowing)
+<p align="center">
+  <img src="https://img.shields.io/badge/Network-Ethereum%20Sepolia-627EEA?style=for-the-badge&logo=ethereum" alt="Sepolia">
+  <img src="https://img.shields.io/badge/Smart%20Contracts-Solidity-363636?style=for-the-badge&logo=solidity" alt="Solidity">
+  <img src="https://img.shields.io/badge/Frontend-Next.js%2014-000000?style=for-the-badge&logo=next.js" alt="Next.js">
+  <img src="https://img.shields.io/badge/Privacy-Fhenix%20CoFHE-FF6B6B?style=for-the-badge" alt="Fhenix">
+</p>
 
 ---
 
-## 🌟 Key Features
+## 🎯 What is LeakProof X?
+
+LeakProof X is a **production-ready**, **fully on-chain** whistleblowing and compliance reporting platform built on Ethereum Sepolia. It enables secure, confidential reporting with encrypted smart contracts, private reviewer voting, and selective disclosure.
+
+Unlike traditional whistleblowing platforms where backend operators can access your data, LeakProof X ensures privacy is an **architectural primitive** — not just a feature.
+
+---
+
+## ✨ Key Features
 
 ### 🔐 Privacy by Design
-- **Client-side encryption** - All sensitive data encrypted before touching the blockchain
-- **Encrypted smart contracts** - Report content stored as encrypted blobs on-chain
-- **Zero plaintext exposure** - No sensitive data visible in transactions
+- **Client-side encryption** — All sensitive data encrypted before touching the blockchain
+- **Encrypted smart contracts** — Report content stored as encrypted blobs on-chain
+- **Zero plaintext exposure** — No sensitive data visible in public transactions
+- **Anonymous by default** — Wallet address as pseudonymous identifier
 
 ### 👥 Role-Based Access
-- **Admin** - Manages cases, assigns reviewers, controls disclosure
-- **Reviewer** - Evaluates assigned cases with encrypted voting
-- **Reporter** - Anyone can submit confidential reports (open to all)
+| Role | Permissions |
+|------|------------|
+| **Reporter** | Anyone can submit reports (open to all) |
+| **Reviewer** | Evaluate assigned cases with encrypted voting |
+| **Admin** | Manage cases, assign reviewers, control disclosure |
 
 ### 🗳️ Private Voting
-- **Encrypted votes** - Reviewer votes encrypted on-chain
-- **Consensus engine** - Automatic status updates when threshold met
-- **Anonymous scoring** - Severity and credibility scores remain confidential
+- **Encrypted votes** — Reviewer votes encrypted on-chain
+- **Consensus engine** — Automatic status updates when threshold met
+- **Anonymous scoring** — Severity and credibility scores remain confidential
 
 ### 🔓 Selective Disclosure
-- **Permission levels** - OutcomeOnly, SummaryOnly, FullReport, IdentityReveal
-- **Time-locked reveal** - Conditional identity release
-- **Audit trail** - All permission changes logged on-chain
+- **4 Permission levels** — OutcomeOnly, SummaryOnly, FullReport, IdentityReveal
+- **Time-locked reveal** — Conditional identity release
+- **Audit trail** — All permission changes logged on-chain
 
 ### 📎 Evidence Management
-- **IPFS integration** - Encrypted file storage via Pinata
-- **On-chain references** - Evidence CIDs stored in contracts
-- **Tamper-evident** - Verifiable proof of evidence submission
+- **IPFS integration** — Encrypted file storage via Pinata
+- **On-chain references** — Evidence CIDs stored in contracts
+- **Tamper-evident** — Verifiable proof of evidence submission
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Frontend (Next.js)                     │
-│  ┌─────────┐  ┌──────────┐  ┌───────────┐  ┌──────────┐  │
-│  │ Reporter │  │ Reviewer │  │   Admin   │  │   IPC    │  │
-│  │Dashboard │  │ Dashboard│  │ Dashboard │  │ Gateway  │  │
-│  └────┬────┘  └────┬─────┘  └─────┬────┘  └────┬─────┘  │
-└───────┼──────────────┼──────────────┼─────────────┼────────┘
-        │              │              │             │
-┌───────┴──────────────┴──────────────┴─────────────┴────────┐
-│                   Smart Contracts (Ethereum)                 │
-│  ┌──────────────┐  ┌────────────┐  ┌────────────────┐    │
-│  │AccessControl │  │LeakProof   │  │   ReviewerHub  │    │
-│  │              │  │Core        │  │                │    │
-│  └──────────────┘  └────────────┘  └────────────────┘    │
-│  ┌────────────────────┐  ┌───────────────────────────┐      │
-│  │ DisclosureCtrl     │  │      IPFS/Pinata        │      │
-│  └────────────────────┘  └───────────────────────────┘      │
-└──────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                          Frontend (Next.js 14)                      │
+│  ┌──────────┐  ┌───────────┐  ┌────────┐  ┌────────────┐  │
+│  │ Reporter │  │ Reviewer  │  │ Admin  │  │   IPFS    │  │
+│  │Dashboard │  │ Dashboard │  │Panel   │  │  Gateway   │  │
+│  └────┬─────┘  └─────┬────┘  └───┬────┘  └─────┬──────┘  │
+└───────┼──────────────┼──────────┼─────────┼─────────────┘
+        │              │          │         │
+┌───────┴──────────────┴──────────┴─────────┴─────────────┐
+│                 Smart Contracts (Ethereum Sepolia)    │
+│                                                          │
+│  ┌───────────────┐  ┌────────────────┐  ┌──────────────┐  │
+│  │AccessControl │  │ LeakProofCore  │  │ ReviewerHub  │  │
+│  │              │  │                │  │              │  │
+│  │ • Roles      │  │ • Cases        │  │ • Assignment │  │
+│  │ • Permissions│  │ • Status       │  │ • Voting     │  │
+│  └───────────────┘  └────────────────┘  └──────────────┘  │
+│  ┌──────────────────────┐  ┌───────────────────────────┐      │
+│  │  DisclosureCtrl   │  │       IPFS/Pinata       │      │
+│  │                   │  │                        │      │
+│  │ • Permission LVL  │  │  • Encrypted Storage    │      │
+│  │ • Access Control  │  │  • CID References      │      │
+│  └───────────────────┘  └───────────────────────────┘      │
+└──────────────────────────────────────────────────────┘
 ```
 
-### Smart Contracts
+---
 
-| Contract | Purpose | Address (Sepolia) |
-|----------|---------|-------------------|
-| `AccessControl` | Role-based permissions | `0xcce61327...D8ef69` |
-| `LeakProofCore` | Case management & storage | `0x857dfb28...f9797` |
-| `ReviewerHub` | Reviewer assignment & voting | `0x9D0c1dbb...ffB1b` |
-| `DisclosureCtrl` | Permission control | `0xB2078Aae...60E23` |
+## 📍 Deployed Contracts (Sepolia)
+
+| Contract | Address |
+|----------|---------|
+| **AccessControl** | `0xcce613271DCBac6aF3CF4eBf53E4C992d6D8ef69` |
+| **LeakProofCore** | `0x857dfb28574F58a67e7334a33EA7a00263Df9797` |
+| **ReviewerHub** | `0x9D0c1dbbAF2E4849c27B88f8E8DA165D764ffB1b` |
+| **DisclosureController** | `0xB2078Aae5782788CA551A8212E27901233260E23` |
 
 ---
 
@@ -76,7 +98,7 @@ LeakProof X is a production-ready, on-chain whistleblowing and compliance report
 ### Prerequisites
 - Node.js 18+
 - MetaMask or any Web3 wallet
-- Sepolia ETH (get from [faucet](https://faucets.chain.link/))
+- Sepolia ETH ([faucet](https://faucets.chain.link/))
 
 ### Installation
 
@@ -88,16 +110,18 @@ cd leakproof
 # Install dependencies
 npm install
 
-# Deploy contracts (if needed)
-cd contracts && node scripts/deploy.js
+# Deploy contracts (optional - already deployed)
+cd contracts
+node scripts/deploy.js
 
 # Start frontend
-cd frontend && npm run dev
+cd ../frontend
+npm run dev
 ```
 
 ### Configuration
 
-Create `.env.local` in the root:
+Create `.env.local` in frontend:
 
 ```env
 NEXT_PUBLIC_ACCESS_CONTROL=0xcce613271DCBac6aF3CF4eBf53E4C992d6D8ef69
@@ -108,40 +132,44 @@ NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_walletconnect_id
 NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt
 ```
 
+Then open [http://localhost:3000](http://localhost:3000)
+
 ---
 
 ## 🗺️ Roadmap
 
-### Wave 1 ✅ (Completed)
+### Wave 1 ✅ (Completed - **Current**)
 **Foundation & Core**
-- [x] Smart contract development & deployment
+- [x] Smart contract development & deployment to Sepolia
 - [x] Encrypted case creation & storage
 - [x] Role-based access control (Admin/Reviewer/Reporter)
 - [x] Reviewer assignment & encrypted voting
-- [x] Basic frontend with wallet connect
+- [x] Basic frontend with wallet connect (wagmi + RainbowKit)
 - [x] IPFS integration for evidence storage
-- [x] UI with particle effects & animations
+- [x] UI with particle effects, animations & glassmorphism
+- [x] Interactive canvas with mouse-following particles
+- [x] Drag & drop evidence upload
 - [x] Sepolia testnet deployment
 
 ### Wave 2 🔄 (In Progress)
 **Enhanced Privacy & UX**
 - [ ] CoFHE SDK integration for true FHE encryption
 - [ ] ZK-proof generation for encrypted inputs
-- [ ] Private reviewer dashboard with assigned cases
-- [ ] Real-time case status updates
-- [ ] Enhanced drag-drop evidence upload
+- [ ] Real-time case status updates via events
+- [ ] Enhanced reviewer dashboard
 - [ ] Multi-language support (i18n)
 - [ ] Dark/Light theme toggle
+- [ ] Notification system
 
 ### Wave 3 📋 (Planned)
 **Advanced Features**
-- [ ] Anonymous reputation system (hidden credibility scores)
+- [ ] Anonymous reputation system
 - [ ] Time-locked disclosure with emergency override
 - [ ] Multi-reviewer consensus (2-of-3, 3-of-5)
-- [ ] DAO governance integration for reviewer selection
-- [ ] Encrypted case categories (even categories hidden)
+- [ ] DAO governance for reviewer selection
+- [ ] Encrypted case categories
 - [ ] Token-gated submission (anti-spam)
-- [ ] Bounty/reward layer for valid reports
+- [ ] Bounty/reward layer
 
 ### Wave 4 🔐 (Planned)
 **Enterprise & Compliance**
@@ -150,7 +178,7 @@ NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt
 - [ ] Integration with legal/HR systems
 - [ ] White-label enterprise dashboard
 - [ ] Custom workflow builder
-- [ ] API access for integrations
+- [ ] API access
 - [ ] SAML/SSO enterprise auth
 
 ### Wave 5 🚀 (Future)
@@ -158,10 +186,10 @@ NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt
 - [ ] Layer 2 migration (Arbitrum/Optimism)
 - [ ] Cross-chain disclosure verification
 - [ ] NFT-based reputation凭证
-- [ ] Decentralized IPFS pinning network
+- [ ] Decentralized IPFS pinning
 - [ ] Privacy-preserving analytics
 - [ ] Mobile app (iOS/Android)
-- [ ] Partnership integrations (Chainalysis, Elliptic)
+- [ ] Partnership integrations
 
 ---
 
@@ -172,14 +200,13 @@ NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt
 1. Connect wallet → Dashboard
 2. Click "Submit New Report"
 3. Fill encrypted form:
-   - Title (encrypted)
-   - Description (encrypted)
-   - Category (encrypted)
-   - Severity (1-5)
-   - Evidence files (uploaded to IPFS)
-4. Submit → Transaction on-chain
-5. Receive Case ID
-6. Track status privately
+   • Title (client-side encrypted)
+   • Description (client-side encrypted)
+   • Category (encrypted)
+   • Severity (1-5)
+   • Evidence files → IPFS
+4. Submit → Transaction on Ethereum Sepolia
+5. Receive Case ID (track privately)
 ```
 
 ### Reviewer Flow
@@ -189,9 +216,9 @@ NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt
 3. View assigned cases
 4. Click case → Review page
 5. Submit encrypted vote:
-   - Recommendation (approve/reject/escalate)
-   - Severity score (1-5)
-   - Confidential notes (encrypted)
+   • Recommendation (approve/reject/escalate)
+   • Severity score (1-5)
+   • Confidential notes
 6. Consensus triggers verification
 ```
 
@@ -202,7 +229,7 @@ NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt
 3. Assign reviewers to cases
 4. Monitor workflow stages
 5. Grant disclosure permissions
-6. Trigger emergency controls if needed
+6. Emergency controls if needed
 ```
 
 ---
@@ -212,54 +239,112 @@ NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt
 | Layer | Technology |
 |-------|------------|
 | **Frontend** | Next.js 14, React 18, TypeScript |
-| **Styling** | Tailwind CSS, Framer Motion |
+| **Styling** | Tailwind CSS, custom animations |
 | **Wallet** | wagmi v2, RainbowKit, viem |
-| **Privacy** | CoFHE SDK, Fhenix |
-| **Storage** | IPFS, Pinata |
+| **Privacy** | CoFHE SDK (Fhenix), client-side AES encryption |
+| **Storage** | IPFS, Pinata SDK |
 | **Contracts** | Solidity, Hardhat, OpenZeppelin |
-| **Chain** | Ethereum Sepolia |
+| **Chain** | Ethereum Sepolia Testnet |
 
 ---
 
 ## 🔒 Security Model
 
-1. **Encrypt before chain** - All sensitive data encrypted client-side
-2. **Minimal on-chain data** - Only encrypted blobs + references
-3. **Role verification** - Every action checked against AccessControl
-4. **Time-locked disclosure** - Identity reveal requires multiple approvals
-5. **Audit without exposure** - Process verifiable, content protected
+```
+1. ENCRYPT BEFORE CHAIN
+   └── All sensitive data encrypted client-side
+
+2. MINIMAL ON-CHAIN DATA
+   └── Only encrypted blobs + references stored
+
+3. ROLE VERIFICATION
+   └── Every action checked against AccessControl
+
+4. TIME-LOCKED DISCLOSURE
+   └── Identity reveal requires admin approval
+
+5. AUDIT WITHOUT EXPOSURE
+   └── Process verifiable, content protected
+```
 
 ---
 
-## 📊 Stats
+## 📊 Contract Stats
 
 | Metric | Value |
 |--------|-------|
 | Contracts Deployed | 4 |
 | Gas Used (Deploy) | ~3.9M |
-| Test Cases | 0 (manual testing) |
-| Encryption | AES-256-GCM (client-side) |
 | Network | Ethereum Sepolia |
+| Encryption | AES-256 (client-side) |
+| Evidence Storage | IPFS + On-chain CID |
+
+---
+
+## 🎨 UI Features
+
+- **Interactive canvas** — Mouse-following particles with grid connections
+- **Glassmorphism** — Frosted glass cards and panels
+- **Animated counters** — Stats animate on scroll
+- **Drag & drop** — Evidence file upload with animations
+- **Gradient animations** — Text and borders animate
+- **Hover effects** — Cards lift and glow
+- **Progress steps** — Visual form submission flow
+- **Dark theme** — Professional dark UI
+
+---
+
+## 📁 Project Structure
+
+```
+leakproof/
+├── contracts/                    # Smart contracts
+│   ├── contracts/
+│   │   ├── AccessControl.sol     # Role management
+│   │   ├── LeakProofCore.sol    # Case management
+│   │   ├── ReviewerHub.sol      # Voting system
+│   │   └── DisclosureCtrl.sol  # Permissions
+│   ├── scripts/
+│   │   └── deploy.js           # Deployment script
+│   └── artifacts/              # Compiled contracts
+│
+├── frontend/                    # Next.js application
+│   ├── app/                    # App Router pages
+│   │   ├── page.tsx            # Landing page
+│   │   ├── reporter/
+│   │   │   ├── dashboard/     # Reporter dashboard
+│   │   │   └── submit/         # Submit report
+│   │   ├── reviewer/
+│   │   │   ├── dashboard/     # Reviewer dashboard
+│   │   │   └── case/[id]/      # Case review page
+│   │   └── admin/
+│   │       └── dashboard/       # Admin panel
+│   ├── components/             # React components
+│   │   ├── InteractiveCanvas.tsx  # Particle effects
+│   │   ├── AnimatedCounter.tsx    # Number animations
+│   │   └── DragDropZone.tsx       # File uploads
+│   ├── hooks/                  # wagmi hooks
+│   ├── lib/                    # Utilities
+│   │   ├── contracts.ts        # ABIs + addresses
+│   │   ├── cofhe.ts           # Encryption utils
+│   │   └── pinata.ts          # IPFS integration
+│   └── lib/
+│       └── wagmi.ts            # Wallet config
+│
+├── .env.local                  # Environment variables
+├── package.json                # Workspace config
+└── README.md                  # This file
+```
 
 ---
 
 ## 🤝 Contributing
 
-Contributions welcome! Please read our contributing guide and submit PRs.
-
-```bash
-# Fork and clone
-git clone https://github.com/your-org/leakproof.git
-
-# Create feature branch
-git checkout -b feature/amazing-feature
-
-# Commit changes
-git commit -m "Add amazing feature"
-
-# Push and create PR
-git push origin feature/amazing-feature
-```
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing`)
+5. Open a Pull Request
 
 ---
 
@@ -271,23 +356,26 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
-- [Fhenix](https://fhenix.io) - Confidential smart contracts
-- [CoFHE](https://cofhe-docs.fhenix.zone) - FHE SDK
-- [OpenZeppelin](https://openzeppelin.com) - Smart contract libraries
-- [RainbowKit](https://rainbow.me) - Beautiful wallet connect
-- [Wavehack](https://wavehack.io) - Hackathon support
+- [Fhenix](https://fhenix.io) — Confidential smart contracts
+- [CoFHE](https://cofhe-docs.fhenix.zone) — FHE SDK
+- [OpenZeppelin](https://openzeppelin.com) — Smart contract libraries
+- [RainbowKit](https://rainbow.me) — Beautiful wallet connect
+- [Next.js](https://nextjs.org) — React framework
+- [Wavehack](https://wavehack.io) — Hackathon support
 
 ---
 
 ## 📞 Contact
 
-- Website: [leakproof.xyz](https://leakproof.xyz)
-- Twitter: [@LeakProofX](https://twitter.com/LeakProofX)
-- Discord: [Join our server](https://discord.gg/leakproof)
-- Email: hello@leakproof.xyz
+- 🌐 Website: [leakproof.vercel.app](https://leakproof.vercel.app)
+- 🐦 Twitter: [@LeakProofX](https://twitter.com/LeakProofX)
+- 💬 Discord: [Join](https://discord.gg/leakproof)
+- 📧 Email: hello@leakproof.xyz
 
 ---
 
 <p align="center">
   <strong>Built with ❤️ for privacy-first whistleblowing</strong>
+  <br>
+  <sub>LeakProof X — Your voice, protected.</sub>
 </p>
