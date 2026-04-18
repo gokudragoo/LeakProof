@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import AnimatedCounter from '@/components/AnimatedCounter';
+import Logo from '@/components/Logo';
 import { getCaseCategoryLabel, getCaseStatusLabel } from '@/lib/contracts';
 import { formatTimestamp } from '@/lib/report-utils';
 import { useCases } from '@/hooks/useCaseRegistry';
