@@ -94,18 +94,17 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
         }
 
         if (encryptedSummaryHandles) {
-          const [approvals, rejects, escalations, severityTotal] = await Promise.all(
+          const [approvals, rejects, escalations] = await Promise.all(
             encryptedSummaryHandles.map((handle) => decryptHandle(handle))
           );
 
           if (active) {
-            const voteCount = caseData?.voteCount ?? 0;
             setConfidentialSummary({
               approvals,
               rejects,
               escalations,
-              severityTotal,
-              averageSeverityScore: voteCount > 0 ? Math.floor(severityTotal / voteCount) : 0,
+              severityTotal: 0,
+              averageSeverityScore: caseData?.averageSeverityScore ?? 0,
             });
           }
         }
@@ -122,7 +121,7 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
     return () => {
       active = false;
     };
-  }, [caseData?.voteCount, cofheReady, decryptHandle, encryptedSeverity, encryptedSummaryHandles, isAssigned, isConnected]);
+  }, [caseData?.averageSeverityScore, cofheReady, decryptHandle, encryptedSeverity, encryptedSummaryHandles, isAssigned, isConnected]);
 
   const myVote = votes.find((item) => item.reviewer.toLowerCase() === address?.toLowerCase());
 
