@@ -35,7 +35,6 @@ export default function AdminDashboard() {
   const { data: adminFlag, isLoading: adminLoading } = useIsAdmin(address);
   const { caseIds, isLoading: idsLoading } = useAllCaseIds();
   const { cases, isLoading: casesLoading } = useCases(caseIds);
-  const { handles: encryptedSummaryHandles } = useEncryptedVoteSummary(selectedCaseId);
   const { assignReviewer, setApprovalThreshold, isPending: reviewerHubPending } = useReviewerHub();
   const { authorize, isPending: authorizePending } = useAuthorizeVoteSummaryAccess();
   const { publishConsensus, isPending: publishPending } = usePublishConsensus();
@@ -52,6 +51,7 @@ export default function AdminDashboard() {
   const [roleAddress, setRoleAddress] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const { handles: encryptedSummaryHandles } = useEncryptedVoteSummary(selectedCaseId);
 
   useEffect(() => {
     if (!selectedCaseId && caseIds.length > 0) {
