@@ -11,7 +11,6 @@ contracts/artifacts
 contracts/cache
 contracts/dist
 contracts/node_modules
-contracts/test
 contracts/types
 contracts/hardhat.config.ts
 contracts/package.json
