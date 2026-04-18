@@ -142,6 +142,23 @@ export const REVIEWER_HUB_ABI = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    inputs: [{ internalType: "address", name: "_reviewer", type: "address" }],
+    name: "getAssignedCases",
+    outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "_caseId", type: "uint256" },
+      { internalType: "address", name: "_reviewer", type: "address" },
+    ],
+    name: "isReviewerAssigned",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;
 
 export const DISCLOSURE_CTRL_ABI = [
