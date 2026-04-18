@@ -8,7 +8,8 @@
       "Bash(npx hardhat *)",
       "Bash(npm run *)",
       "Bash(npx ts-node *)",
-      "Bash(curl -s -X POST https://rpc.ankr.com/eth_sepolia -H \"Content-Type: application/json\" -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}')"
+      "Bash(curl -s -X POST https://rpc.ankr.com/eth_sepolia -H \"Content-Type: application/json\" -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}')",
+      "Bash(curl *)"
     ]
   }
 }
