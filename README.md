@@ -111,9 +111,9 @@ ETHERSCAN_API_KEY=
 - [x] Real dashboards connected to on-chain data
 - [x] Receipt-confirmed report submission and voting
 
-### Wave 2 🔄 (In Progress)
-- [ ] CoFHE SDK for true FHE encryption
-- [ ] ZK-proof generation
+### Wave 2 ✅ (Completed)
+- [x] CoFHE SDK for true FHE encryption
+- [x] ZK-proof generation
 - [x] Real-time event updates
 - [x] Enhanced dashboards
 - [x] End-to-end on-chain workflow
