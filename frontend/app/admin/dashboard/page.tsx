@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
@@ -15,6 +15,11 @@ export default function AdminDashboard() {
   const { caseCount, isLoading } = useCaseRegistry();
   const { assignReviewer, isPending, isSuccess } = useReviewerHub();
   const { grantAccess } = useDisclosureCtrl();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  if (!mounted) return null;
 
   const [selectedCase, setSelectedCase] = useState<number | null>(null);
   const [reviewerAddress, setReviewerAddress] = useState('');
