@@ -39,7 +39,7 @@ export default function ReviewerCaseDetail({ params }: { params: { id: string } 
       const encryptedInputs = await encryptVote(
         {
           items: [
-            { data: voteValue, utype: 2, securityZone: 0 },
+            { data: BigInt(voteValue), utype: 2, securityZone: 0 },
             { data: BigInt(voteData.severityScore), utype: 2, securityZone: 0 },
           ],
           account: address,
