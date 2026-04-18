@@ -1,11 +1,12 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import AnimatedCounter from '@/components/AnimatedCounter';
+import Logo from '@/components/Logo';
 import { getCaseCategoryLabel, getCaseStatusLabel } from '@/lib/contracts';
-import { fetchJsonFromIPFS } from '@/lib/pinata';
 import { formatTimestamp, shortAddress } from '@/lib/report-utils';
 import { useCases, useReporterCases } from '@/hooks/useCaseRegistry';
 import type { ReportPayload } from '@/types';
