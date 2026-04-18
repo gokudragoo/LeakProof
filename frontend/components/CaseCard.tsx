@@ -15,12 +15,12 @@ export default function CaseCard({ caseId, status, category }: { caseId: number;
 
   return (
     <Link
-      href={`/cases/${caseId}`}
-      className="block p-6 rounded-xl bg-dark-700/50 border border-gray-700 hover:border-primary-500/50 transition-all group"
+      href={`/reviewer/case/${caseId}`}
+      className="block p-6 rounded-2xl bg-slate-950/50 border border-white/10 hover:border-sky-500/50 transition-all group"
     >
       <div className="flex justify-between items-start mb-4">
         <div>
-          <div className="font-semibold text-lg group-hover:text-primary-400 transition-colors">
+          <div className="font-semibold text-lg group-hover:text-sky-400 transition-colors">
             Case #{caseId}
           </div>
           <div className="text-sm text-gray-400">{category}</div>
