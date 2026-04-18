@@ -29,8 +29,6 @@ export interface ReviewerAssignedEvent {
 export interface VoteSubmittedEvent {
   caseId: bigint;
   reviewer: `0x${string}`;
-  recommendation: number;
-  severityScore: number;
 }
 
 export function useContractEvents() {
@@ -102,8 +100,6 @@ export function useContractEvents() {
         const events = logs.map((log) => ({
           caseId: log.args.caseId ?? 0n,
           reviewer: (log.args.reviewer ?? CONTRACTS.ACCESS_CONTROL) as `0x${string}`,
-          recommendation: Number(log.args.recommendation ?? 0),
-          severityScore: Number(log.args.severityScore ?? 0),
         }));
 
         setVoteSubmittedEvents((previous) => [...events, ...previous]);
