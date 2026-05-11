@@ -163,7 +163,7 @@ export function useCreateCase() {
         input.evidenceDigest ??
           "0x0000000000000000000000000000000000000000000000000000000000000000",
       ],
-    });
+    } as Parameters<typeof writeContractAsync>[0]);
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     let caseId: number | null = null;

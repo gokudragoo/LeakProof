@@ -39,7 +39,28 @@ async function main() {
   await disclosureController.waitForDeployment();
   const disclosureControllerAddress = await disclosureController.getAddress();
 
+  const token = await ethers.deployContract("LeakProofToken");
+  await token.waitForDeployment();
+  const tokenAddress = await token.getAddress();
+
+  const reputation = await ethers.deployContract("ReputationRegistry", [accessControlAddress]);
+  await reputation.waitForDeployment();
+  const reputationAddress = await reputation.getAddress();
+
+  const timeLockedDisclosure = await ethers.deployContract("TimeLockedDisclosure", [
+    accessControlAddress,
+    coreAddress,
+  ]);
+  await timeLockedDisclosure.waitForDeployment();
+  const timeLockedDisclosureAddress = await timeLockedDisclosure.getAddress();
+
+  const dao = await ethers.deployContract("LeakProofDAO", [tokenAddress, accessControlAddress]);
+  await dao.waitForDeployment();
+  const daoAddress = await dao.getAddress();
+
   await (await core.setReviewerHub(reviewerHubAddress)).wait();
+  await (await core.setReputationRegistry(reputationAddress)).wait();
+  await (await reputation.setCore(coreAddress)).wait();
 
   const frontendEnvPath = path.resolve(__dirname, "../../frontend/.env.local");
   const currentFrontendEnv = fs.existsSync(frontendEnvPath)
@@ -55,6 +76,10 @@ async function main() {
     "NEXT_PUBLIC_DISCLOSURE_CTRL",
     disclosureControllerAddress
   );
+  nextFrontendEnv = upsertEnvValue(nextFrontendEnv, "NEXT_PUBLIC_TOKEN", tokenAddress);
+  nextFrontendEnv = upsertEnvValue(nextFrontendEnv, "NEXT_PUBLIC_REPUTATION", reputationAddress);
+  nextFrontendEnv = upsertEnvValue(nextFrontendEnv, "NEXT_PUBLIC_TIMELOCKED", timeLockedDisclosureAddress);
+  nextFrontendEnv = upsertEnvValue(nextFrontendEnv, "NEXT_PUBLIC_DAO", daoAddress);
 
   fs.writeFileSync(frontendEnvPath, nextFrontendEnv);
 
@@ -66,6 +91,10 @@ async function main() {
       `NEXT_PUBLIC_CORE=${coreAddress}`,
       `NEXT_PUBLIC_REVIEWER_HUB=${reviewerHubAddress}`,
       `NEXT_PUBLIC_DISCLOSURE_CTRL=${disclosureControllerAddress}`,
+      `NEXT_PUBLIC_TOKEN=${tokenAddress}`,
+      `NEXT_PUBLIC_REPUTATION=${reputationAddress}`,
+      `NEXT_PUBLIC_TIMELOCKED=${timeLockedDisclosureAddress}`,
+      `NEXT_PUBLIC_DAO=${daoAddress}`,
     ].join("\n") + "\n"
   );
 
@@ -74,6 +103,10 @@ async function main() {
   console.log(`  LeakProofCore:  ${coreAddress}`);
   console.log(`  ReviewerHub:    ${reviewerHubAddress}`);
   console.log(`  DisclosureCtrl: ${disclosureControllerAddress}`);
+  console.log(`  Token:          ${tokenAddress}`);
+  console.log(`  Reputation:     ${reputationAddress}`);
+  console.log(`  TimeLocked:     ${timeLockedDisclosureAddress}`);
+  console.log(`  DAO:            ${daoAddress}`);
   console.log(`  Frontend env:   ${frontendEnvPath}`);
   console.log(`  Deploy record:  ${deployedEnvPath}`);
 }

@@ -65,7 +65,7 @@ function CaseCard({ caseId, status, category, reporter, createdAt, voteCount, re
   description?: string;
 }) {
   return (
-    <Link href={`/reviewer/case/${caseId}`} className="block">
+    <Link href={`/reporter/case/${caseId}`} className="block">
       <div className="case-card h-full">
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -140,6 +140,12 @@ export default function ReporterDashboard() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
               New Report
+            </Link>
+            <Link href="/reporter/reputation" className="btn-secondary hidden sm:flex items-center gap-2 text-sm">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              Reputation
             </Link>
             <ConnectButton />
           </div>

@@ -427,6 +427,10 @@ export const CONTRACTS = {
   CORE: normalizeAddress(process.env.NEXT_PUBLIC_CORE),
   REVIEWER_HUB: normalizeAddress(process.env.NEXT_PUBLIC_REVIEWER_HUB),
   DISCLOSURE_CTRL: normalizeAddress(process.env.NEXT_PUBLIC_DISCLOSURE_CTRL),
+  TOKEN: normalizeAddress(process.env.NEXT_PUBLIC_TOKEN),
+  REPUTATION: normalizeAddress(process.env.NEXT_PUBLIC_REPUTATION),
+  TIMELOCKED: normalizeAddress(process.env.NEXT_PUBLIC_TIMELOCKED),
+  DAO: normalizeAddress(process.env.NEXT_PUBLIC_DAO),
 } as const;
 
 export const CASE_STATUS = [
@@ -502,5 +506,14 @@ export function normalizeCaseRecord(caseId: number, data: readonly unknown[]): C
 }
 
 export function contractsConfigured() {
-  return Object.values(CONTRACTS).every((address) => address !== ZERO_ADDRESS);
+  return [
+    CONTRACTS.ACCESS_CONTROL,
+    CONTRACTS.CORE,
+    CONTRACTS.REVIEWER_HUB,
+    CONTRACTS.DISCLOSURE_CTRL,
+  ].every((address) => address !== ZERO_ADDRESS);
+}
+
+export function isContractConfigured(address: `0x${string}`) {
+  return address !== ZERO_ADDRESS;
 }

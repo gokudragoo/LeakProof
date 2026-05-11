@@ -14,9 +14,6 @@ contracts/cache
 contracts/dist
 contracts/node_modules
 contracts/types
-contracts/hardhat.config.ts
-contracts/package.json
-contracts/tsconfig.json
 contracts/yarn.lock
 contracts/yarn.lock
 

@@ -58,10 +58,14 @@ LeakProof X is a **working on-chain whistleblowing and compliance reporting plat
 
 | Contract | Address | Purpose |
 |----------|---------|---------|
-| **AccessControl** | `0x1b69a89aCaae7d4Aebd0b1fcEE50c89bf9547F66` | Role management |
-| **LeakProofCore** | `0x8CCDe2497ec6580077056d852E94752fF38A042E` | Case storage |
-| **ReviewerHub** | `0x5bD964D7CfABbb2A7BdF0202880C8d5AD86C50BA` | Voting system |
-| **DisclosureCtrl** | `0x599da2BbF6E94859E15B2eCD2b95f1eF1f9dCE49` | Permissions |
+| **AccessControl** | `0x25a4737e042DF543df8F5a87cF954d6305c11468` | Role management |
+| **LeakProofCore** | `0x6e22762070DD3Cc2D44A96cf7c3b61882651875B` | Case storage |
+| **ReviewerHub** | `0x6435212d5F648f598fc910AeF483f29f3a7e5D87` | FHE reviewer voting |
+| **DisclosureCtrl** | `0xa3B45d68ADEA4Da3665DE0939ec5E55ce26B5506` | Selective permissions |
+| **LeakProofToken** | `0xC3382eD8Ac459611074Fd61b0E893e24eD270940` | Governance voting power |
+| **ReputationRegistry** | `0x2Ab5d9051587E0a009fED0A445d02941A60a7E9F` | Reporter/reviewer reputation |
+| **TimeLockedDisclosure** | `0xCbce10F2EcC6b6246818184e82147AE1b2999244` | Time-locked disclosure controls |
+| **LeakProofDAO** | `0x857916A21CeCf776458CFeE93f7d955AD31a27e7` | DAO proposals and voting |
 
 ---
 
@@ -80,10 +84,14 @@ npm run dev --workspace frontend
 ### Configuration (`frontend/.env.local`)
 
 ```env
-NEXT_PUBLIC_ACCESS_CONTROL=0x1b69a89aCaae7d4Aebd0b1fcEE50c89bf9547F66
-NEXT_PUBLIC_CORE=0x8CCDe2497ec6580077056d852E94752fF38A042E
-NEXT_PUBLIC_REVIEWER_HUB=0x5bD964D7CfABbb2A7BdF0202880C8d5AD86C50BA
-NEXT_PUBLIC_DISCLOSURE_CTRL=0x599da2BbF6E94859E15B2eCD2b95f1eF1f9dCE49
+NEXT_PUBLIC_ACCESS_CONTROL=0x25a4737e042DF543df8F5a87cF954d6305c11468
+NEXT_PUBLIC_CORE=0x6e22762070DD3Cc2D44A96cf7c3b61882651875B
+NEXT_PUBLIC_REVIEWER_HUB=0x6435212d5F648f598fc910AeF483f29f3a7e5D87
+NEXT_PUBLIC_DISCLOSURE_CTRL=0xa3B45d68ADEA4Da3665DE0939ec5E55ce26B5506
+NEXT_PUBLIC_TOKEN=0xC3382eD8Ac459611074Fd61b0E893e24eD270940
+NEXT_PUBLIC_REPUTATION=0x2Ab5d9051587E0a009fED0A445d02941A60a7E9F
+NEXT_PUBLIC_TIMELOCKED=0xCbce10F2EcC6b6246818184e82147AE1b2999244
+NEXT_PUBLIC_DAO=0x857916A21CeCf776458CFeE93f7d955AD31a27e7
 NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_walletconnect_id
 PINATA_JWT=your_pinata_jwt
 ```
@@ -118,16 +126,17 @@ ETHERSCAN_API_KEY=
 - [x] Enhanced dashboards
 - [x] End-to-end on-chain workflow
 
-### Wave 3 📋 (Planned)
-- [ ] Anonymous reputation system
-- [ ] Time-locked disclosure
-- [ ] Multi-reviewer consensus analytics
-- [ ] DAO governance
+### Wave 3 ✅ (Completed)
+- [x] Anonymous reputation system
+- [x] Multi-reviewer consensus analytics
+- [x] DAO governance token and proposal flow
+- [x] CoFHE package upgrade to 0.5.x
 
-### Wave 4 🔐 (Planned)
-- [ ] Enterprise compliance
-- [ ] Legal export
-- [ ] White-label dashboard
+### Wave 4 ✅ (Completed)
+- [x] Time-locked disclosure controls
+- [x] Multi-admin unlock approvals
+- [x] Emergency disclosure pause
+- [x] Production UI hardening and deployment wiring
 
 ### Wave 5 🚀 (Future)
 - [ ] Layer 2 migration
@@ -143,9 +152,9 @@ ETHERSCAN_API_KEY=
 | Frontend | Next.js 14, React 18, TypeScript |
 | Styling | Tailwind CSS, custom animations |
 | Wallet | wagmi v2, RainbowKit, viem |
-| Privacy Workflow | Client-side digesting + IPFS-backed payloads |
+| Privacy Workflow | CoFHE encrypted inputs + client-side digesting + IPFS-backed payloads |
 | Storage | IPFS, Pinata |
-| Contracts | Solidity, Hardhat, OpenZeppelin |
+| Contracts | Solidity 0.8.28, Hardhat, OpenZeppelin, CoFHE |
 | Network | Ethereum Sepolia |
 
 ---
@@ -187,10 +196,10 @@ ETHERSCAN_API_KEY=
 ```text
 leakproof/
 ├── contracts/            # Solidity smart contracts
-│   ├── contracts/        # AccessControl, LeakProofCore, ReviewerHub, DisclosureCtrl
+│   ├── contracts/        # Core, reviewer, disclosure, reputation, timelock, DAO
 │   ├── scripts/          # Deployment scripts
 │   ├── test/             # Contract tests
-│   └── .env.deployed     # Latest deployed contract addresses
+│   └── .env.deployed     # Latest deployed Sepolia addresses
 ├── frontend/             # Next.js 14 app
 │   ├── app/              # Pages (landing, dashboards, submit)
 │   ├── components/       # SplashScreen, InteractiveCanvas, AnimatedCounter
@@ -209,6 +218,8 @@ Latest verified checks:
 - `npm run compile --workspace contracts`
 - `npm run test --workspace contracts`
 - `npm run build --workspace frontend`
+
+Latest Sepolia smoke test created case `#1`, assigned the deployer as reviewer, submitted an encrypted vote, published the CoFHE-backed tally, and finalized the case as Verified.
 
 ---
 

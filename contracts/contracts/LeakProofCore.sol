@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.28;
 
 import {FHE, InEuint8, euint8} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 import "./AccessControl.sol";
 
+interface IReputationRegistry {
+    function recordReportSubmission(address reporter) external;
+    function recordCaseOutcome(uint256 caseId, address reporter, uint8 outcome) external;
+}
+
 contract LeakProofCore {
     LeakProofAccessControl public immutable accessControl;
     address public reviewerHub;
+    address public reputationRegistry;
 
     enum CaseStatus {
         Submitted,
@@ -56,6 +62,7 @@ contract LeakProofCore {
     mapping(address => uint256[]) private reporterCases;
 
     event ReviewerHubUpdated(address indexed reviewerHub);
+    event ReputationRegistryUpdated(address indexed reputationRegistry);
     event CaseCreated(
         uint256 indexed caseId,
         address indexed reporter,
@@ -81,6 +88,7 @@ contract LeakProofCore {
         address indexed updater
     );
     event ConfidentialAccessAuthorized(uint256 indexed caseId, address indexed viewer);
+    event ReputationSyncSkipped(uint256 indexed caseId, uint8 indexed status);
 
     modifier onlyAdmin() {
         require(accessControl.isAdmin(msg.sender), "Admin only");
@@ -106,6 +114,12 @@ contract LeakProofCore {
         require(reviewerHubAddress != address(0), "Invalid reviewer hub");
         reviewerHub = reviewerHubAddress;
         emit ReviewerHubUpdated(reviewerHubAddress);
+    }
+
+    function setReputationRegistry(address reputationRegistryAddress) external onlyAdmin {
+        require(reputationRegistryAddress != address(0), "Invalid reputation registry");
+        reputationRegistry = reputationRegistryAddress;
+        emit ReputationRegistryUpdated(reputationRegistryAddress);
     }
 
     function createCase(
@@ -146,6 +160,7 @@ contract LeakProofCore {
         FHE.allowThis(cases[newCaseId].reporterSeverity);
         FHE.allow(cases[newCaseId].reporterSeverity, msg.sender);
         reporterCases[msg.sender].push(newCaseId);
+        _syncReportSubmission(newCaseId, msg.sender);
 
         emit CaseCreated(newCaseId, msg.sender, category, reportCid, evidenceCid, block.timestamp);
         emit ConfidentialAccessAuthorized(newCaseId, msg.sender);
@@ -255,6 +270,36 @@ contract LeakProofCore {
         caseItem.updatedAt = uint64(block.timestamp);
 
         emit StatusUpdated(caseId, oldStatus, newStatus, updater);
+        _syncCaseOutcome(caseId, caseItem.reporter, newStatus);
+    }
+
+    function _syncReportSubmission(uint256 caseId, address reporter) internal {
+        if (reputationRegistry == address(0)) {
+            return;
+        }
+
+        try IReputationRegistry(reputationRegistry).recordReportSubmission(reporter) {}
+        catch {
+            emit ReputationSyncSkipped(caseId, uint8(CaseStatus.Submitted));
+        }
+    }
+
+    function _syncCaseOutcome(uint256 caseId, address reporter, CaseStatus status) internal {
+        if (
+            reputationRegistry == address(0) ||
+            (
+                status != CaseStatus.Escalated &&
+                status != CaseStatus.Verified &&
+                status != CaseStatus.Rejected
+            )
+        ) {
+            return;
+        }
+
+        try IReputationRegistry(reputationRegistry).recordCaseOutcome(caseId, reporter, uint8(status)) {}
+        catch {
+            emit ReputationSyncSkipped(caseId, uint8(status));
+        }
     }
 
     function getCase(uint256 caseId)

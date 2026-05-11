@@ -149,7 +149,7 @@ export function useSubmitVote() {
         submission.severityScore,
         submission.notes,
       ],
-    });
+    } as Parameters<typeof writeContractAsync>[0]);
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     return { hash, receipt };
