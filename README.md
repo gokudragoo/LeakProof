@@ -5,7 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Network-Ethereum%20Sepolia-627EEA?style=for-the-badge&logo=ethereum" alt="Sepolia">
   <img src="https://img.shields.io/badge/Smart%20Contracts-Solidity-363636?style=for-the-badge&logo=solidity" alt="Solidity">
-  <img src="https://img.shields.io/badge/Frontend-Next.js%2014-000000?style=for-the-badge&logo=next.js" alt="Next.js">
+  <img src="https://img.shields.io/badge/Frontend-Next.js%2016-000000?style=for-the-badge&logo=next.js" alt="Next.js">
   <img src="https://img.shields.io/badge/Workflow-On--Chain-16a34a?style=for-the-badge" alt="On-chain">
 </p>
 
@@ -22,6 +22,7 @@ LeakProof X is a **working on-chain whistleblowing and compliance reporting plat
 ## ✨ Features
 
 ### 🔐 Privacy by Design
+
 - Client-side protected report payloads before on-chain anchoring
 - Report and evidence references stored on-chain with IPFS CIDs and digests
 - Zero plaintext report body stored directly in contract state
@@ -30,24 +31,27 @@ LeakProof X is a **working on-chain whistleblowing and compliance reporting plat
 
 ### 👥 Role-Based Access
 
-| Role | Permissions |
-|------|-------------|
-| **Reporter** | Submit reports and track their own cases |
-| **Reviewer** | Evaluate assigned cases and submit votes |
-| **Admin** | Manage cases, assign reviewers, grant reviewer roles, control disclosure |
+| Role         | Permissions                                                              |
+| ------------ | ------------------------------------------------------------------------ |
+| **Reporter** | Submit reports and track their own cases                                 |
+| **Reviewer** | Evaluate assigned cases and submit votes                                 |
+| **Admin**    | Manage cases, assign reviewers, grant reviewer roles, control disclosure |
 
 ### 🗳️ Private Voting
+
 - Reviewer votes stored on-chain
 - Consensus engine triggers automatic verification or rejection
 - Approve / Reject / Escalate flow
 - Severity scoring per reviewer
 
 ### 🔓 Selective Disclosure
+
 - **4 Permission levels**: OutcomeOnly / SummaryOnly / FullReport / IdentityReveal
 - Admin-controlled disclosure access
 - Full audit trail on-chain
 
 ### 📎 Evidence Management
+
 - IPFS integration (Pinata) for file storage
 - On-chain CID references for tamper evidence
 - Drag & drop file uploads
@@ -56,16 +60,16 @@ LeakProof X is a **working on-chain whistleblowing and compliance reporting plat
 
 ## 📍 Deployed Contracts (Sepolia Testnet)
 
-| Contract | Address | Purpose |
-|----------|---------|---------|
-| **AccessControl** | `0x25a4737e042DF543df8F5a87cF954d6305c11468` | Role management |
-| **LeakProofCore** | `0x6e22762070DD3Cc2D44A96cf7c3b61882651875B` | Case storage |
-| **ReviewerHub** | `0x6435212d5F648f598fc910AeF483f29f3a7e5D87` | FHE reviewer voting |
-| **DisclosureCtrl** | `0xa3B45d68ADEA4Da3665DE0939ec5E55ce26B5506` | Selective permissions |
-| **LeakProofToken** | `0xC3382eD8Ac459611074Fd61b0E893e24eD270940` | Governance voting power |
-| **ReputationRegistry** | `0x2Ab5d9051587E0a009fED0A445d02941A60a7E9F` | Reporter/reviewer reputation |
+| Contract                 | Address                                      | Purpose                         |
+| ------------------------ | -------------------------------------------- | ------------------------------- |
+| **AccessControl**        | `0x25a4737e042DF543df8F5a87cF954d6305c11468` | Role management                 |
+| **LeakProofCore**        | `0x6e22762070DD3Cc2D44A96cf7c3b61882651875B` | Case storage                    |
+| **ReviewerHub**          | `0x6435212d5F648f598fc910AeF483f29f3a7e5D87` | FHE reviewer voting             |
+| **DisclosureCtrl**       | `0xa3B45d68ADEA4Da3665DE0939ec5E55ce26B5506` | Selective permissions           |
+| **LeakProofToken**       | `0xC3382eD8Ac459611074Fd61b0E893e24eD270940` | Governance voting power         |
+| **ReputationRegistry**   | `0x2Ab5d9051587E0a009fED0A445d02941A60a7E9F` | Reporter/reviewer reputation    |
 | **TimeLockedDisclosure** | `0xCbce10F2EcC6b6246818184e82147AE1b2999244` | Time-locked disclosure controls |
-| **LeakProofDAO** | `0x857916A21CeCf776458CFeE93f7d955AD31a27e7` | DAO proposals and voting |
+| **LeakProofDAO**         | `0x857916A21CeCf776458CFeE93f7d955AD31a27e7` | DAO proposals and voting        |
 
 ---
 
@@ -109,6 +113,7 @@ ETHERSCAN_API_KEY=
 ## 🗺️ Roadmap
 
 ### Wave 1 ✅ (Completed)
+
 - [x] Smart contracts deployed to Sepolia
 - [x] Role-based access control
 - [x] Reviewer assignment & voting
@@ -120,6 +125,7 @@ ETHERSCAN_API_KEY=
 - [x] Receipt-confirmed report submission and voting
 
 ### Wave 2 ✅ (Completed)
+
 - [x] CoFHE SDK for true FHE encryption
 - [x] ZK-proof generation
 - [x] Real-time event updates
@@ -127,51 +133,66 @@ ETHERSCAN_API_KEY=
 - [x] End-to-end on-chain workflow
 
 ### Wave 3 ✅ (Completed)
+
 - [x] Anonymous reputation system
 - [x] Multi-reviewer consensus analytics
 - [x] DAO governance token and proposal flow
 - [x] CoFHE package upgrade to 0.5.x
 
 ### Wave 4 ✅ (Completed)
+
 - [x] Time-locked disclosure controls
 - [x] Multi-admin unlock approvals
 - [x] Emergency disclosure pause
 - [x] Production UI hardening and deployment wiring
+- [x] Operations health dashboard for deployed contract bytecode checks
+- [x] Final Sepolia end-to-end smoke test
 
-### Wave 5 🚀 (Future)
-- [ ] Layer 2 migration
-- [ ] Mobile app
-- [ ] Partnership integrations
+### Wave 5 🚀 (Launch Hardening)
+
+- [ ] Independent smart contract security audit and threat model
+- [ ] Contract verification, release tags, and immutable deployment manifest
+- [ ] CI pipeline for compile, frontend build, audit reporting, and Sepolia smoke tests
+- [ ] Production observability: RPC health, failed transaction tracking, uptime checks, and alerting
+- [ ] Indexer/subgraph for fast case, vote, reputation, DAO, and disclosure history
+- [ ] Organization onboarding: admin setup wizard, reviewer invite flow, and role recovery runbook
+- [ ] Secure key management: multisig admin ownership, deployer key rotation, and emergency response policy
+- [ ] L2 deployment plan for lower fees, with bridge and chain-switch UX
+- [ ] PWA/mobile-ready reporter experience with offline draft encryption
+- [ ] Compliance export packs for auditors without exposing confidential report content
 
 ---
 
 ## 🏗️ Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | Next.js 14, React 18, TypeScript |
-| Styling | Tailwind CSS, custom animations |
-| Wallet | wagmi v2, RainbowKit, viem |
+| Layer            | Technology                                                            |
+| ---------------- | --------------------------------------------------------------------- |
+| Frontend         | Next.js 16, React 18, TypeScript                                      |
+| Styling          | Tailwind CSS, custom animations                                       |
+| Wallet           | wagmi v2, RainbowKit, viem                                            |
 | Privacy Workflow | CoFHE encrypted inputs + client-side digesting + IPFS-backed payloads |
-| Storage | IPFS, Pinata |
-| Contracts | Solidity 0.8.28, Hardhat, OpenZeppelin, CoFHE |
-| Network | Ethereum Sepolia |
+| Storage          | IPFS, Pinata                                                          |
+| Contracts        | Solidity 0.8.28, Hardhat, OpenZeppelin, CoFHE                         |
+| Network          | Ethereum Sepolia                                                      |
 
 ---
 
 ## 📱 How It Works
 
 ### Reporter
+
 1. Connect wallet → Dashboard
 2. Submit report payload → Transaction on-chain
 3. Receive real Case ID from confirmed receipt → Track privately
 
 ### Reviewer
+
 1. Admin assigns to case
 2. Submit vote (`approve` / `reject` / `escalate`)
 3. Consensus updates the case status on-chain
 
 ### Admin
+
 1. View all cases
 2. Grant reviewer role
 3. Assign reviewers
@@ -180,6 +201,7 @@ ETHERSCAN_API_KEY=
 ---
 
 ## 🎨 UI Features
+
 - Splash screen with loading animation
 - Interactive canvas with mouse particles
 - Glassmorphism cards
@@ -200,7 +222,7 @@ leakproof/
 │   ├── scripts/          # Deployment scripts
 │   ├── test/             # Contract tests
 │   └── .env.deployed     # Latest deployed Sepolia addresses
-├── frontend/             # Next.js 14 app
+├── frontend/             # Next.js 16 app
 │   ├── app/              # Pages (landing, dashboards, submit)
 │   ├── components/       # SplashScreen, InteractiveCanvas, AnimatedCounter
 │   ├── hooks/            # useCaseRegistry, useReviewerHub, useDisclosureCtrl
@@ -215,11 +237,12 @@ leakproof/
 ## ✅ Validation
 
 Latest verified checks:
+
 - `npm run compile --workspace contracts`
 - `npm run test --workspace contracts`
 - `npm run build --workspace frontend`
 
-Latest Sepolia smoke test created case `#1`, assigned the deployer as reviewer, submitted an encrypted vote, published the CoFHE-backed tally, and finalized the case as Verified.
+Latest Sepolia smoke test created case `#3`, assigned the deployer as reviewer, submitted an encrypted vote, published the CoFHE-backed tally, and finalized the case as Verified.
 
 ---
 
@@ -232,6 +255,7 @@ Open PRs welcome! See `CONTRIBUTING.md` for guidelines.
 MIT License
 
 ## 🙏 Built With
+
 - [OpenZeppelin](https://openzeppelin.com) — Smart contract libraries
 - [RainbowKit](https://rainbow.me) — Wallet connect
 - [Pinata](https://pinata.cloud) — IPFS uploads
