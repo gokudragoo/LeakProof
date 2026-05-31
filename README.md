@@ -2,12 +2,7 @@
 
 **Privacy-First Whistleblowing Platform on Ethereum**
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Network-Ethereum%20Sepolia-627EEA?style=for-the-badge&logo=ethereum" alt="Sepolia">
-  <img src="https://img.shields.io/badge/Smart%20Contracts-Solidity-363636?style=for-the-badge&logo=solidity" alt="Solidity">
-  <img src="https://img.shields.io/badge/Frontend-Next.js%2016-000000?style=for-the-badge&logo=next.js" alt="Next.js">
-  <img src="https://img.shields.io/badge/Workflow-On--Chain-16a34a?style=for-the-badge" alt="On-chain">
-</p>
+
 
 ---
 
@@ -31,11 +26,13 @@ LeakProof X is a **working on-chain whistleblowing and compliance reporting plat
 
 ### 👥 Role-Based Access
 
+
 | Role         | Permissions                                                              |
 | ------------ | ------------------------------------------------------------------------ |
 | **Reporter** | Submit reports and track their own cases                                 |
 | **Reviewer** | Evaluate assigned cases and submit votes                                 |
 | **Admin**    | Manage cases, assign reviewers, grant reviewer roles, control disclosure |
+
 
 ### 🗳️ Private Voting
 
@@ -60,6 +57,7 @@ LeakProof X is a **working on-chain whistleblowing and compliance reporting plat
 
 ## 📍 Deployed Contracts (Sepolia Testnet)
 
+
 | Contract                 | Address                                      | Purpose                         |
 | ------------------------ | -------------------------------------------- | ------------------------------- |
 | **AccessControl**        | `0x11CA5A395E958Da09FA3A536083D130AE70F0899` | Role management                 |
@@ -70,6 +68,7 @@ LeakProof X is a **working on-chain whistleblowing and compliance reporting plat
 | **ReputationRegistry**   | `0xA1F21077C218095C7c511f558ac7754B1CA43805` | Reporter/reviewer reputation    |
 | **TimeLockedDisclosure** | `0x9587ce13587A8D38aE446a25073b0aBdF0bC1Fd5` | Time-locked disclosure controls |
 | **LeakProofDAO**         | `0xbad25115cA45D516b42b1Bdc924397064419268e` | DAO proposals and voting        |
+
 
 ---
 
@@ -116,56 +115,57 @@ ETHERSCAN_API_KEY=
 
 ### Wave 1 ✅ (Completed)
 
-- [x] Smart contracts deployed to Sepolia
-- [x] Role-based access control
-- [x] Reviewer assignment & voting
-- [x] Frontend with wallet connect
-- [x] IPFS integration
-- [x] Splash screen & animations
-- [x] Interactive canvas particles
-- [x] Real dashboards connected to on-chain data
-- [x] Receipt-confirmed report submission and voting
+- Smart contracts deployed to Sepolia
+- Role-based access control
+- Reviewer assignment & voting
+- Frontend with wallet connect
+- IPFS integration
+- Splash screen & animations
+- Interactive canvas particles
+- Real dashboards connected to on-chain data
+- Receipt-confirmed report submission and voting
 
 ### Wave 2 ✅ (Completed)
 
-- [x] CoFHE SDK for true FHE encryption
-- [x] ZK-proof generation
-- [x] Real-time event updates
-- [x] Enhanced dashboards
-- [x] End-to-end on-chain workflow
+- CoFHE SDK for true FHE encryption
+- ZK-proof generation
+- Real-time event updates
+- Enhanced dashboards
+- End-to-end on-chain workflow
 
 ### Wave 3 ✅ (Completed)
 
-- [x] Anonymous reputation system
-- [x] Multi-reviewer consensus analytics
-- [x] DAO governance token and proposal flow
-- [x] CoFHE package upgrade to 0.5.x
+- Anonymous reputation system
+- Multi-reviewer consensus analytics
+- DAO governance token and proposal flow
+- CoFHE package upgrade to 0.5.x
 
 ### Wave 4 ✅ (Completed)
 
-- [x] Time-locked disclosure controls
-- [x] Multi-admin unlock approvals
-- [x] Emergency disclosure pause
-- [x] Production UI hardening and deployment wiring
-- [x] Operations health dashboard for deployed contract bytecode checks
-- [x] Final Sepolia end-to-end smoke test
+- Time-locked disclosure controls
+- Multi-admin unlock approvals
+- Emergency disclosure pause
+- Production UI hardening and deployment wiring
+- Operations health dashboard for deployed contract bytecode checks
+- Final Sepolia end-to-end smoke test
 
-### Wave 5 🚀 (Launch Hardening)
+### Wave 5 **✅ (Completed)**
 
-- [x] Independent audit package and smart contract threat model
-- [x] Contract verification checklist, release manifest script, and immutable Sepolia deployment manifest
-- [x] CI pipeline for compile, frontend build, audit reporting, manifest generation, and optional Sepolia smoke tests
-- [x] Production observability: RPC health endpoint, bytecode checks, failed transaction tracking, uptime-ready `/api/health`
-- [x] Event indexer for fast case, vote, assignment, and status history in Operations
-- [x] Organization onboarding: admin setup wizard, reviewer invite flow, and role recovery runbook
-- [x] Secure key management: multisig admin ownership, deployer key rotation, reviewer recovery, and emergency response policy
-- [x] L2 deployment plan for lower fees, with bridge and chain-switch UX policy
-- [x] PWA/mobile-ready reporter experience with encrypted offline drafts
-- [x] Compliance export packs for auditors without exposing confidential report content
+- Independent audit package and smart contract threat model
+- Contract verification checklist, release manifest script, and immutable Sepolia deployment manifest
+- CI pipeline for compile, frontend build, audit reporting, manifest generation, and optional Sepolia smoke tests
+- Production observability: RPC health endpoint, bytecode checks, failed transaction tracking, uptime-ready `/api/health`
+- Event indexer for fast case, vote, assignment, and status history in Operations
+- Organization onboarding: admin setup wizard, reviewer invite flow, and role recovery runbook
+- Secure key management: multisig admin ownership, deployer key rotation, reviewer recovery, and emergency response policy
+- L2 deployment plan for lower fees, with bridge and chain-switch UX policy
+- PWA/mobile-ready reporter experience with encrypted offline drafts
+- Compliance export packs for auditors without exposing confidential report content
 
 ---
 
 ## 🏗️ Tech Stack
+
 
 | Layer            | Technology                                                            |
 | ---------------- | --------------------------------------------------------------------- |
@@ -176,6 +176,7 @@ ETHERSCAN_API_KEY=
 | Storage          | IPFS, Pinata                                                          |
 | Contracts        | Solidity 0.8.28, Hardhat, OpenZeppelin, CoFHE                         |
 | Network          | Ethereum Sepolia                                                      |
+
 
 ---
 

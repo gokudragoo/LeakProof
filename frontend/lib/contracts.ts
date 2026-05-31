@@ -596,9 +596,9 @@ export const CASE_CATEGORY = [
   "Fraud",
   "Harassment",
   "Corruption",
-  "PolicyViolation",
-  "FinancialMisconduct",
-  "ComplianceBreach",
+  "Policy Violation",
+  "Financial Misconduct",
+  "Compliance Breach",
   "Other",
 ] as const;
 

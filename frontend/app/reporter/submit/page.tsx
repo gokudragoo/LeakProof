@@ -322,18 +322,18 @@ export default function SubmitReport() {
             {/* Category */}
             <div className="glass-card p-6">
               <label className="block text-sm font-medium text-gray-400 mb-4">Category</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {CASE_CATEGORY.map((label, index) => (
                   <button
                     key={label}
                     type="button"
                     onClick={() => setCategory(index)}
-                    className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all ${category === index ? 'bg-blue-500/15 border-blue-500/30 text-blue-300' : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'}`}
+                    className={`flex min-h-[72px] items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${category === index ? 'bg-blue-500/15 border-blue-500/30 text-blue-300' : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'}`}
                   >
-                    <span className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-white/5">
                       {categoryIcons[index]}
                     </span>
-                    <span className="text-sm font-medium">{label}</span>
+                    <span className="min-w-0 whitespace-normal break-words text-sm font-medium leading-snug">{label}</span>
                   </button>
                 ))}
               </div>
