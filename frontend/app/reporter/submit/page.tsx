@@ -322,7 +322,7 @@ export default function SubmitReport() {
             {/* Category */}
             <div className="glass-card p-6">
               <label className="block text-sm font-medium text-gray-400 mb-4">Category</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {CASE_CATEGORY.map((label, index) => (
                   <button
                     key={label}
