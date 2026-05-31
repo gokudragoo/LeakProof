@@ -55,8 +55,16 @@ contract LeakProofCore {
         bool exists;
     }
 
+    struct EvidenceUpdate {
+        string evidenceCid;
+        bytes32 evidenceDigest;
+        address submittedBy;
+        uint64 submittedAt;
+    }
+
     uint256 public caseCount;
     mapping(uint256 => Case) private cases;
+    mapping(uint256 => EvidenceUpdate[]) private evidenceUpdates;
     mapping(uint256 => address[]) private caseReviewers;
     mapping(uint256 => mapping(address => bool)) public reviewerAssigned;
     mapping(address => uint256[]) private reporterCases;
@@ -88,6 +96,13 @@ contract LeakProofCore {
         address indexed updater
     );
     event ConfidentialAccessAuthorized(uint256 indexed caseId, address indexed viewer);
+    event EvidenceAdded(
+        uint256 indexed caseId,
+        address indexed submittedBy,
+        string evidenceCid,
+        bytes32 evidenceDigest,
+        uint256 timestamp
+    );
     event ReputationSyncSkipped(uint256 indexed caseId, uint8 indexed status);
 
     modifier onlyAdmin() {
@@ -195,7 +210,10 @@ contract LeakProofCore {
         require(
             accessControl.isAdmin(msg.sender) ||
                 msg.sender == caseItem.reporter ||
-                reviewerAssigned[caseId][msg.sender],
+                (
+                    accessControl.isReviewer(msg.sender) &&
+                    reviewerAssigned[caseId][msg.sender]
+                ),
             "Not authorized"
         );
 
@@ -250,6 +268,43 @@ contract LeakProofCore {
         );
 
         _setStatus(caseId, newStatus, msg.sender);
+    }
+
+    function addEvidence(
+        uint256 caseId,
+        string calldata evidenceCid,
+        bytes32 evidenceDigest
+    ) external caseMustExist(caseId) {
+        Case storage caseItem = cases[caseId];
+        require(bytes(evidenceCid).length > 0, "Evidence CID required");
+        require(
+            msg.sender == caseItem.reporter || accessControl.isAdmin(msg.sender),
+            "Not authorized"
+        );
+        require(caseItem.status != CaseStatus.Closed, "Case closed");
+
+        evidenceUpdates[caseId].push(
+            EvidenceUpdate({
+                evidenceCid: evidenceCid,
+                evidenceDigest: evidenceDigest,
+                submittedBy: msg.sender,
+                submittedAt: uint64(block.timestamp)
+            })
+        );
+
+        caseItem.evidenceCid = evidenceCid;
+        caseItem.evidenceDigest = evidenceDigest;
+        caseItem.updatedAt = uint64(block.timestamp);
+
+        if (caseItem.status == CaseStatus.NeedsEvidence) {
+            _setStatus(
+                caseId,
+                caseItem.reviewerCount > 0 ? CaseStatus.UnderReview : CaseStatus.Submitted,
+                msg.sender
+            );
+        }
+
+        emit EvidenceAdded(caseId, msg.sender, evidenceCid, evidenceDigest, block.timestamp);
     }
 
     function _setStatus(uint256 caseId, CaseStatus newStatus, address updater) internal {
@@ -372,6 +427,15 @@ contract LeakProofCore {
 
     function getCasesByReporter(address reporter) external view returns (uint256[] memory) {
         return reporterCases[reporter];
+    }
+
+    function getEvidenceUpdates(uint256 caseId)
+        external
+        view
+        caseMustExist(caseId)
+        returns (EvidenceUpdate[] memory)
+    {
+        return evidenceUpdates[caseId];
     }
 
     function getCasesByStatus(CaseStatus status) external view returns (uint256[] memory) {

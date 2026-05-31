@@ -7,6 +7,8 @@ import { useChainId, usePublicClient } from 'wagmi';
 import Logo from '@/components/Logo';
 import { CONTRACTS, isContractConfigured } from '@/lib/contracts';
 import { shortAddress } from '@/lib/report-utils';
+import { getTransactionObservations, type TransactionObservation } from '@/lib/tx-observer';
+import { loadIndexedActivity, type IndexedActivity } from '@/lib/wave5-indexer';
 
 type ModuleState = 'checking' | 'live' | 'missing' | 'unconfigured' | 'error';
 
@@ -66,6 +68,9 @@ export default function OperationsPage() {
   const [latestBlock, setLatestBlock] = useState<bigint | null>(null);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activity, setActivity] = useState<IndexedActivity[]>([]);
+  const [activityWindow, setActivityWindow] = useState<{ fromBlock: bigint; latestBlock: bigint } | null>(null);
+  const [txObservations, setTxObservations] = useState<TransactionObservation[]>([]);
 
   const runChecks = async () => {
     setIsRefreshing(true);
@@ -103,6 +108,15 @@ export default function OperationsPage() {
 
       setLatestBlock(block);
       setChecks(nextChecks);
+      try {
+        const indexed = await loadIndexedActivity(publicClient);
+        setActivity(indexed.activity.slice(0, 12));
+        setActivityWindow({ fromBlock: indexed.fromBlock, latestBlock: indexed.latestBlock });
+      } catch {
+        setActivity([]);
+        setActivityWindow(null);
+      }
+      setTxObservations(getTransactionObservations());
       setLastChecked(new Date());
     } finally {
       setIsRefreshing(false);
@@ -113,6 +127,10 @@ export default function OperationsPage() {
     runChecks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publicClient]);
+
+  useEffect(() => {
+    setTxObservations(getTransactionObservations());
+  }, []);
 
   const summary = useMemo(() => {
     const live = checks.filter((check) => check.state === 'live').length;
@@ -138,7 +156,7 @@ export default function OperationsPage() {
           <div className="flex items-center gap-4">
             <div className="hidden items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 sm:flex">
               <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              <span className="text-xs font-medium text-emerald-300">Wave 4 Final</span>
+              <span className="text-xs font-medium text-emerald-300">Wave 5 Ready</span>
             </div>
             <ConnectButton />
           </div>
@@ -241,6 +259,94 @@ export default function OperationsPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          <div className="glass-card overflow-hidden">
+            <div className="border-b border-white/5 px-6 py-5">
+              <h2 className="text-xl font-semibold">Indexed Activity</h2>
+              <p className="mt-1 text-xs text-gray-500">
+                {activityWindow
+                  ? `Blocks ${activityWindow.fromBlock.toString()}-${activityWindow.latestBlock.toString()}`
+                  : 'Waiting for RPC history'}
+              </p>
+            </div>
+            <div className="divide-y divide-white/5">
+              {activity.length === 0 ? (
+                <div className="px-6 py-8 text-sm text-gray-500">No recent case, vote, or assignment events found.</div>
+              ) : (
+                activity.map((item) => (
+                  <div key={`${item.transactionHash}-${item.type}-${item.caseId}`} className="px-6 py-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-semibold text-white">{item.type}</div>
+                        <div className="mt-1 text-sm text-gray-500">
+                          Case #{item.caseId} {item.actor ? `by ${shortAddress(item.actor)}` : ''}
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-gray-500">Block {item.blockNumber.toString()}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="glass-card overflow-hidden">
+            <div className="border-b border-white/5 px-6 py-5">
+              <h2 className="text-xl font-semibold">Transaction Watch</h2>
+              <p className="mt-1 text-xs text-gray-500">Recent submitted, confirmed, and failed wallet actions on this device.</p>
+            </div>
+            <div className="divide-y divide-white/5">
+              {txObservations.length === 0 ? (
+                <div className="px-6 py-8 text-sm text-gray-500">No tracked wallet actions yet.</div>
+              ) : (
+                txObservations.slice(0, 8).map((item) => (
+                  <div key={item.id} className="px-6 py-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-semibold text-white">{item.action}</div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {item.hash ? shortAddress(item.hash) : item.message ?? 'No transaction hash'}
+                        </div>
+                      </div>
+                      <span className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${
+                        item.status === 'confirmed'
+                          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                          : item.status === 'failed'
+                            ? 'border-red-500/20 bg-red-500/10 text-red-300'
+                            : 'border-sky-500/20 bg-sky-500/10 text-sky-300'
+                      }`}>
+                        {item.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-card mt-8 p-6">
+          <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">L2 Readiness</h2>
+              <p className="mt-1 max-w-3xl text-sm text-gray-500">
+                Sepolia remains the active production testnet. Base Sepolia and Arbitrum Sepolia are prepared for lower-fee redeploys once bridge custody is approved.
+              </p>
+            </div>
+            <span className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300">Plan Ready</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {['Ethereum Sepolia', 'Base Sepolia', 'Arbitrum Sepolia'].map((network, index) => (
+              <div key={network} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                <div className="font-semibold text-white">{network}</div>
+                <div className="mt-2 text-sm text-gray-500">
+                  {index === 0 ? 'Live deployment and smoke tests' : 'Bridge plan and chain-switch UX documented'}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </main>

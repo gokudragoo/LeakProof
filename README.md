@@ -62,14 +62,14 @@ LeakProof X is a **working on-chain whistleblowing and compliance reporting plat
 
 | Contract                 | Address                                      | Purpose                         |
 | ------------------------ | -------------------------------------------- | ------------------------------- |
-| **AccessControl**        | `0x25a4737e042DF543df8F5a87cF954d6305c11468` | Role management                 |
-| **LeakProofCore**        | `0x6e22762070DD3Cc2D44A96cf7c3b61882651875B` | Case storage                    |
-| **ReviewerHub**          | `0x6435212d5F648f598fc910AeF483f29f3a7e5D87` | FHE reviewer voting             |
-| **DisclosureCtrl**       | `0xa3B45d68ADEA4Da3665DE0939ec5E55ce26B5506` | Selective permissions           |
-| **LeakProofToken**       | `0xC3382eD8Ac459611074Fd61b0E893e24eD270940` | Governance voting power         |
-| **ReputationRegistry**   | `0x2Ab5d9051587E0a009fED0A445d02941A60a7E9F` | Reporter/reviewer reputation    |
-| **TimeLockedDisclosure** | `0xCbce10F2EcC6b6246818184e82147AE1b2999244` | Time-locked disclosure controls |
-| **LeakProofDAO**         | `0x857916A21CeCf776458CFeE93f7d955AD31a27e7` | DAO proposals and voting        |
+| **AccessControl**        | `0x11CA5A395E958Da09FA3A536083D130AE70F0899` | Role management                 |
+| **LeakProofCore**        | `0xAda01070cd7bFA4Deb06651d17bC8DCa5340256c` | Case storage                    |
+| **ReviewerHub**          | `0x5E1D2cF60BE742924540A6B776D437251e0EE53F` | FHE reviewer voting             |
+| **DisclosureCtrl**       | `0x08D462652Cc4517220c275a45F1289B6F42efAA6` | Selective permissions           |
+| **LeakProofToken**       | `0xEF4E82bC002A7e68592F00c809E896368c9E32c3` | Governance voting power         |
+| **ReputationRegistry**   | `0xA1F21077C218095C7c511f558ac7754B1CA43805` | Reporter/reviewer reputation    |
+| **TimeLockedDisclosure** | `0x9587ce13587A8D38aE446a25073b0aBdF0bC1Fd5` | Time-locked disclosure controls |
+| **LeakProofDAO**         | `0xbad25115cA45D516b42b1Bdc924397064419268e` | DAO proposals and voting        |
 
 ---
 
@@ -88,16 +88,18 @@ npm run dev --workspace frontend
 ### Configuration (`frontend/.env.local`)
 
 ```env
-NEXT_PUBLIC_ACCESS_CONTROL=0x25a4737e042DF543df8F5a87cF954d6305c11468
-NEXT_PUBLIC_CORE=0x6e22762070DD3Cc2D44A96cf7c3b61882651875B
-NEXT_PUBLIC_REVIEWER_HUB=0x6435212d5F648f598fc910AeF483f29f3a7e5D87
-NEXT_PUBLIC_DISCLOSURE_CTRL=0xa3B45d68ADEA4Da3665DE0939ec5E55ce26B5506
-NEXT_PUBLIC_TOKEN=0xC3382eD8Ac459611074Fd61b0E893e24eD270940
-NEXT_PUBLIC_REPUTATION=0x2Ab5d9051587E0a009fED0A445d02941A60a7E9F
-NEXT_PUBLIC_TIMELOCKED=0xCbce10F2EcC6b6246818184e82147AE1b2999244
-NEXT_PUBLIC_DAO=0x857916A21CeCf776458CFeE93f7d955AD31a27e7
+NEXT_PUBLIC_ACCESS_CONTROL=0x11CA5A395E958Da09FA3A536083D130AE70F0899
+NEXT_PUBLIC_CORE=0xAda01070cd7bFA4Deb06651d17bC8DCa5340256c
+NEXT_PUBLIC_REVIEWER_HUB=0x5E1D2cF60BE742924540A6B776D437251e0EE53F
+NEXT_PUBLIC_DISCLOSURE_CTRL=0x08D462652Cc4517220c275a45F1289B6F42efAA6
+NEXT_PUBLIC_TOKEN=0xEF4E82bC002A7e68592F00c809E896368c9E32c3
+NEXT_PUBLIC_REPUTATION=0xA1F21077C218095C7c511f558ac7754B1CA43805
+NEXT_PUBLIC_TIMELOCKED=0x9587ce13587A8D38aE446a25073b0aBdF0bC1Fd5
+NEXT_PUBLIC_DAO=0xbad25115cA45D516b42b1Bdc924397064419268e
 NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_walletconnect_id
 PINATA_JWT=your_pinata_jwt
+PINATA_API_KEY=your_pinata_api_key
+PINATA_API_SECRET=your_pinata_api_secret
 ```
 
 ### Deployment Configuration (`.env`)
@@ -150,16 +152,16 @@ ETHERSCAN_API_KEY=
 
 ### Wave 5 🚀 (Launch Hardening)
 
-- [ ] Independent smart contract security audit and threat model
-- [ ] Contract verification, release tags, and immutable deployment manifest
-- [ ] CI pipeline for compile, frontend build, audit reporting, and Sepolia smoke tests
-- [ ] Production observability: RPC health, failed transaction tracking, uptime checks, and alerting
-- [ ] Indexer/subgraph for fast case, vote, reputation, DAO, and disclosure history
-- [ ] Organization onboarding: admin setup wizard, reviewer invite flow, and role recovery runbook
-- [ ] Secure key management: multisig admin ownership, deployer key rotation, and emergency response policy
-- [ ] L2 deployment plan for lower fees, with bridge and chain-switch UX
-- [ ] PWA/mobile-ready reporter experience with offline draft encryption
-- [ ] Compliance export packs for auditors without exposing confidential report content
+- [x] Independent audit package and smart contract threat model
+- [x] Contract verification checklist, release manifest script, and immutable Sepolia deployment manifest
+- [x] CI pipeline for compile, frontend build, audit reporting, manifest generation, and optional Sepolia smoke tests
+- [x] Production observability: RPC health endpoint, bytecode checks, failed transaction tracking, uptime-ready `/api/health`
+- [x] Event indexer for fast case, vote, assignment, and status history in Operations
+- [x] Organization onboarding: admin setup wizard, reviewer invite flow, and role recovery runbook
+- [x] Secure key management: multisig admin ownership, deployer key rotation, reviewer recovery, and emergency response policy
+- [x] L2 deployment plan for lower fees, with bridge and chain-switch UX policy
+- [x] PWA/mobile-ready reporter experience with encrypted offline drafts
+- [x] Compliance export packs for auditors without exposing confidential report content
 
 ---
 
@@ -241,8 +243,11 @@ Latest verified checks:
 - `npm run compile --workspace contracts`
 - `npm run test --workspace contracts`
 - `npm run build --workspace frontend`
+- `npm run audit:report`
+- `npm run manifest --workspace contracts`
+- `npm run check:deployment --workspace contracts`
 
-Latest Sepolia smoke test created case `#3`, assigned the deployer as reviewer, submitted an encrypted vote, published the CoFHE-backed tally, and finalized the case as Verified.
+Latest Sepolia smoke test on the Wave 5 deployment created case `#1`, assigned the deployer as reviewer, submitted an encrypted vote, published the CoFHE-backed tally, and finalized the case as Verified.
 
 ---
 

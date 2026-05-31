@@ -1,0 +1,89 @@
+{
+  "schema": "leakproof-deployment-manifest/v1",
+  "generatedAt": "2026-05-31T06:31:26.629Z",
+  "chain": {
+    "name": "Ethereum Sepolia",
+    "chainId": 11155111
+  },
+  "contracts": {
+    "accessControl": "0x9294315334811E721746EAedeeB7Ad9127D9d5a3",
+    "core": "0x7141485c8557198dC0072FB775177392CB482C76",
+    "reviewerHub": "0x20Ce41d7fc5fd0b89df1104CB2dB7fbF3e3eE257",
+    "disclosureController": "0x371B6580E176CD9158cB138FCB631a86234e366F",
+    "token": "0x62011645e15C4aA40525d4EeB6333c2909613391",
+    "reputationRegistry": "0xB2db631779DF17303A6a8F599a6131e59602aB9F",
+    "timeLockedDisclosure": "0x1636e9EbB240c60EFbDF5aEEb655120557a31fB7",
+    "dao": "0xa805482Cc1EC0Cd1F353d40DE468CA1147bC67D2"
+  },
+  "compiler": {
+    "solidity": "0.8.28",
+    "optimizerRuns": 200,
+    "evmVersion": "cancun",
+    "viaIR": true
+  },
+  "sourceDigest": "e79cc28c1d0fa534701f910cf86af373f37a2999ad3ecd9169cc34cf65d44343",
+  "sources": [
+    {
+      "fileName": "AccessControl.sol",
+      "sha256": "b7d13ce8e4db137807430438a0f2640d6c05e52d59b77917595f0d1d6a232a51"
+    },
+    {
+      "fileName": "LeakProofCore.sol",
+      "sha256": "167b960f7d0fbecf7d0f353b575adf9a88881387b5e35618bdb46653b35fcaad"
+    },
+    {
+      "fileName": "ReviewerHub.sol",
+      "sha256": "ec67cfbcc6883f49ac4a7a68f342e5186bf9d120aecba64c22e4b267aa33d6b1"
+    },
+    {
+      "fileName": "DisclosureController.sol",
+      "sha256": "3efdf45504c80007cf893c725aa545ff08aade43ba5f1bdd80ba1bb7c86be058"
+    },
+    {
+      "fileName": "LeakProofToken.sol",
+      "sha256": "cdefa206951d0a9ede3b5de7832833847b812df29c77df146b5707a16bcdb409"
+    },
+    {
+      "fileName": "ReputationRegistry.sol",
+      "sha256": "4a8eafc17f6b31f9746488551359eb1ae16bab3841b38b28af95f43dd865f321"
+    },
+    {
+      "fileName": "TimeLockedDisclosure.sol",
+      "sha256": "74e7ab14eaceb4c509e569977f0494e7ae6c5ef9857d5c1b4051e5339eb7ad94"
+    },
+    {
+      "fileName": "DAOGovernance.sol",
+      "sha256": "8f6013ff4c73226ef4dccb214c36eb9f842c21a2e5e29f988b76add2014376f6"
+    }
+  ],
+  "buildInputs": [
+    {
+      "fileName": "package.json",
+      "sha256": "77173e4dc55b004fd8d16472ade41301248db28daa1d7cfa073ecde3729f3cce"
+    },
+    {
+      "fileName": "package-lock.json",
+      "sha256": "4edd2292c1c57a83ccb0e659879c469cc868a1a0654611725257865af9a31c74"
+    },
+    {
+      "fileName": "contracts/package.json",
+      "sha256": "e1d3f0014c793f8d4be17ed08e094f90d82c1e7529d13db776b6b671c138a99b"
+    },
+    {
+      "fileName": "contracts/hardhat.config.ts",
+      "sha256": "e4521724f4afccff33c4d58327c4594da660fc889ab15230b2545726da2c371b"
+    },
+    {
+      "fileName": "contracts/scripts/deploy.ts",
+      "sha256": "7d3516be332da1846a8d4de9e7edcd84240f380371934e1de63302a6bfd776d4"
+    },
+    {
+      "fileName": "contracts/scripts/check-deployment.ts",
+      "sha256": "cb1d8d6073f9166a4b9abe2d1dcb252f2f7a419d1e9841a7ef4649118feb7076"
+    },
+    {
+      "fileName": "contracts/scripts/generate-manifest.ts",
+      "sha256": "0820aa72844aa7da790e91f815cf50b8e96644130762843911a59e35c51599e4"
+    }
+  ]
+}

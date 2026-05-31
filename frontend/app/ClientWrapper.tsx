@@ -26,6 +26,12 @@ export default function ClientWrapper({ children }: { children: React.ReactNode 
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+      void navigator.serviceWorker.register('/sw.js');
+    }
+  }, []);
+
   return (
     <Providers>
       <InteractiveCanvas />

@@ -5,9 +5,22 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./AccessControl.sol";
 import "./LeakProofCore.sol";
 
+enum DisclosureControllerPermissionLevel {
+    None,
+    OutcomeOnly,
+    SummaryOnly,
+    FullReport,
+    IdentityReveal
+}
+
+interface IDisclosureController {
+    function grantDisclosureAccessFromTimeLock(uint256 caseId, address grantee, DisclosureControllerPermissionLevel level) external;
+}
+
 contract TimeLockedDisclosure is AccessControl {
     LeakProofAccessControl public immutable accessControl;
     LeakProofCore public immutable core;
+    IDisclosureController public immutable disclosureController;
 
     struct DisclosureLock {
         uint256 caseId;
@@ -18,6 +31,8 @@ contract TimeLockedDisclosure is AccessControl {
         uint8 currentApprovals;
         uint256 createdAt;
         string disclosureType;
+        address grantee;
+        uint8 permissionLevel;
     }
 
     struct ApprovalRecord {
@@ -72,10 +87,16 @@ contract TimeLockedDisclosure is AccessControl {
         _;
     }
 
-    constructor(address accessControlAddress, address coreAddress) {
-        require(accessControlAddress != address(0) && coreAddress != address(0), "Invalid addresses");
+    constructor(address accessControlAddress, address coreAddress, address disclosureControllerAddress) {
+        require(
+            accessControlAddress != address(0) &&
+                coreAddress != address(0) &&
+                disclosureControllerAddress != address(0),
+            "Invalid addresses"
+        );
         accessControl = LeakProofAccessControl(accessControlAddress);
         core = LeakProofCore(coreAddress);
+        disclosureController = IDisclosureController(disclosureControllerAddress);
     }
 
     function createDisclosureLock(
@@ -84,6 +105,30 @@ contract TimeLockedDisclosure is AccessControl {
         uint8 requiredApprovals,
         string calldata disclosureType
     ) external onlyAdmin whenNotPaused returns (uint256 unlockTimestamp) {
+        return _createDisclosureLock(caseId, lockDuration, requiredApprovals, disclosureType, address(0), 0);
+    }
+
+    function createDisclosureLockForAccess(
+        uint256 caseId,
+        uint256 lockDuration,
+        uint8 requiredApprovals,
+        string calldata disclosureType,
+        address grantee,
+        uint8 permissionLevel
+    ) external onlyAdmin whenNotPaused returns (uint256 unlockTimestamp) {
+        require(grantee != address(0), "Invalid grantee");
+        require(permissionLevel > 0 && permissionLevel <= 4, "Invalid permission");
+        return _createDisclosureLock(caseId, lockDuration, requiredApprovals, disclosureType, grantee, permissionLevel);
+    }
+
+    function _createDisclosureLock(
+        uint256 caseId,
+        uint256 lockDuration,
+        uint8 requiredApprovals,
+        string calldata disclosureType,
+        address grantee,
+        uint8 permissionLevel
+    ) internal returns (uint256 unlockTimestamp) {
         require(core.caseExists(caseId), "Invalid case ID");
         require(disclosureLocks[caseId].createdAt == 0, "Lock already exists");
 
@@ -102,7 +147,9 @@ contract TimeLockedDisclosure is AccessControl {
             requiredApprovals: requiredApprovals,
             currentApprovals: 0,
             createdAt: block.timestamp,
-            disclosureType: disclosureType
+            disclosureType: disclosureType,
+            grantee: grantee,
+            permissionLevel: permissionLevel
         });
 
         emit DisclosureLockCreated(caseId, unlock, requiredApprovals, disclosureType);
@@ -126,7 +173,7 @@ contract TimeLockedDisclosure is AccessControl {
 
         emit DisclosureLockApproved(caseId, msg.sender, lock.currentApprovals);
 
-        if (lock.currentApprovals >= lock.requiredApprovals && block.timestamp >= lock.unlockTimestamp) {
+        if (block.timestamp >= lock.unlockTimestamp && _approvalsSatisfied(lock)) {
             _executeUnlock(caseId);
         }
     }
@@ -137,17 +184,26 @@ contract TimeLockedDisclosure is AccessControl {
         require(!lock.revoked, "Lock revoked");
         require(!lock.emergencyUnlock, "Already unlocked");
 
-        require(
-            block.timestamp >= lock.unlockTimestamp || lock.currentApprovals >= lock.requiredApprovals,
-            "Lock period active"
-        );
+        require(block.timestamp >= lock.unlockTimestamp, "Lock period active");
+        require(_approvalsSatisfied(lock), "Approvals pending");
 
         _executeUnlock(caseId);
+    }
+
+    function _approvalsSatisfied(DisclosureLock storage lock) internal view returns (bool) {
+        return lock.requiredApprovals == 0 || lock.currentApprovals >= lock.requiredApprovals;
     }
 
     function _executeUnlock(uint256 caseId) internal {
         DisclosureLock storage lock = disclosureLocks[caseId];
         lock.emergencyUnlock = true;
+        if (lock.grantee != address(0) && lock.permissionLevel > 0) {
+            disclosureController.grantDisclosureAccessFromTimeLock(
+                caseId,
+                lock.grantee,
+                DisclosureControllerPermissionLevel(lock.permissionLevel)
+            );
+        }
         emit DisclosureLockUnlocked(caseId, msg.sender);
     }
 
@@ -171,6 +227,7 @@ contract TimeLockedDisclosure is AccessControl {
     }
 
     function initiateEmergencyOverride(uint256 caseId, string calldata reason) external onlyAdmin whenNotPaused {
+        require(core.caseExists(caseId), "Invalid case ID");
         require(bytes(reason).length > 0, "Reason required");
         require(
             lastEmergencyRequest[msg.sender] + EMERGENCY_COOLDOWN <= block.timestamp ||
@@ -193,6 +250,7 @@ contract TimeLockedDisclosure is AccessControl {
     }
 
     function executeEmergencyOverride(uint256 caseId) external onlyAdmin whenNotPaused {
+        require(core.caseExists(caseId), "Invalid case ID");
         EmergencyOverride storage emergency = emergencyOverrides[caseId];
         require(emergency.initiatedAt != 0, "No emergency pending");
         require(!emergency.executed, "Already executed");
@@ -204,7 +262,7 @@ contract TimeLockedDisclosure is AccessControl {
 
         DisclosureLock storage lock = disclosureLocks[caseId];
         if (lock.createdAt != 0 && !lock.emergencyUnlock && !lock.revoked) {
-            lock.emergencyUnlock = true;
+            _executeUnlock(caseId);
         }
 
         emergency.executed = true;
@@ -247,6 +305,10 @@ contract TimeLockedDisclosure is AccessControl {
             ? lock.unlockTimestamp - block.timestamp
             : 0;
 
+        bool canUnlock = lock.createdAt != 0 &&
+            !lock.revoked &&
+            (lock.emergencyUnlock || (remaining == 0 && _approvalsSatisfied(lock)));
+
         return (
             lock.unlockTimestamp,
             lock.emergencyUnlock,
@@ -254,7 +316,7 @@ contract TimeLockedDisclosure is AccessControl {
             lock.requiredApprovals,
             lock.currentApprovals,
             remaining,
-            lock.emergencyUnlock || remaining == 0 || lock.currentApprovals >= lock.requiredApprovals
+            canUnlock
         );
     }
 
@@ -273,6 +335,7 @@ contract TimeLockedDisclosure is AccessControl {
             emergency.initiatedAt,
             emergency.executed,
             emergency.cancelled,
+            emergency.initiatedAt != 0 &&
             !emergency.executed && !emergency.cancelled &&
             emergency.initiatedAt + EMERGENCY_COOLDOWN <= block.timestamp
         );

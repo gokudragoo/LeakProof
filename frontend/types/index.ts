@@ -26,6 +26,13 @@ export interface ReportPayload {
   evidenceName?: string;
 }
 
+export interface EvidenceUpdateRecord {
+  evidenceCid: string;
+  evidenceDigest: `0x${string}`;
+  submittedBy: `0x${string}`;
+  submittedAt: number;
+}
+
 export interface VoteRecord {
   reviewer: `0x${string}`;
   hasVoted: boolean;
@@ -71,6 +78,12 @@ export interface CreateCaseInput {
   reporterSeverity: EncryptedUint8Input;
   evidenceCid?: string;
   evidenceDigest?: `0x${string}`;
+}
+
+export interface AddEvidenceInput {
+  caseId: number;
+  evidenceCid: string;
+  evidenceDigest: `0x${string}`;
 }
 
 export interface VoteSubmission {

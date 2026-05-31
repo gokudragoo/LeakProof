@@ -8,7 +8,17 @@ import Logo from '@/components/Logo';
 import {
   getCaseCategoryLabel,
 } from '@/lib/contracts';
-import { fetchJsonFromIPFS, getIpfsUrl } from '@/lib/pinata';
+import {
+  decryptEvidenceBlob,
+  decryptReportPayload,
+  downloadFile,
+  encryptTextWithAccessKey,
+  isEncryptedJsonEnvelope,
+  loadCaseAccessKey,
+  normalizeCaseAccessKey,
+  saveCaseAccessKey,
+} from '@/lib/case-crypto';
+import { fetchBlobFromIPFS, fetchJsonFromIPFS } from '@/lib/pinata';
 import { formatTimestamp } from '@/lib/report-utils';
 import { useCase, useEncryptedReporterSeverity } from '@/hooks/useCaseRegistry';
 import { useCofheClient } from '@/hooks/useCofheClient';
@@ -59,6 +69,9 @@ export default function ReviewerCaseDetailClient({ caseId }: { caseId: number })
   const { decryptHandle, encryptUint8, isReady: cofheReady } = useCofheClient();
 
   const [payload, setPayload] = useState<ReportPayload | null>(null);
+  const [accessKey, setAccessKey] = useState('');
+  const [keyInput, setKeyInput] = useState('');
+  const [payloadStatus, setPayloadStatus] = useState('');
   const [confidentialSummary, setConfidentialSummary] = useState<ConfidentialVoteSummary | null>(null);
   const [reporterSeverity, setReporterSeverity] = useState<number | null>(null);
   const [recommendation, setRecommendation] = useState(1);
@@ -68,6 +81,12 @@ export default function ReviewerCaseDetailClient({ caseId }: { caseId: number })
   const [error, setError] = useState('');
 
   useEffect(() => {
+    const savedKey = loadCaseAccessKey(caseId);
+    setAccessKey(savedKey);
+    setKeyInput(savedKey);
+  }, [caseId]);
+
+  useEffect(() => {
     let active = true;
 
     if (!caseData?.reportCid) {
@@ -75,18 +94,35 @@ export default function ReviewerCaseDetailClient({ caseId }: { caseId: number })
       return;
     }
 
-    fetchJsonFromIPFS<ReportPayload>(caseData.reportCid)
-      .then((nextPayload) => {
-        if (active) setPayload(nextPayload);
+    setPayloadStatus('');
+    fetchJsonFromIPFS<ReportPayload | unknown>(caseData.reportCid)
+      .then(async (nextPayload) => {
+        if (!active) return;
+        if (isEncryptedJsonEnvelope(nextPayload)) {
+          if (!accessKey) {
+            setPayload(null);
+            setPayloadStatus('Import the case access key to decrypt this report.');
+            return;
+          }
+          setPayload(await decryptReportPayload(nextPayload, accessKey));
+          setPayloadStatus('');
+          return;
+        }
+
+        setPayload(nextPayload as ReportPayload);
+        setPayloadStatus('Legacy plaintext report loaded.');
       })
       .catch(() => {
-        if (active) setPayload(null);
+        if (active) {
+          setPayload(null);
+          setPayloadStatus('Report payload could not be decrypted or loaded.');
+        }
       });
 
     return () => {
       active = false;
     };
-  }, [caseData?.reportCid]);
+  }, [accessKey, caseData?.reportCid]);
 
   const myVote = votes.find((item) => item.reviewer.toLowerCase() === address?.toLowerCase());
 
@@ -141,20 +177,65 @@ export default function ReviewerCaseDetailClient({ caseId }: { caseId: number })
     }
   };
 
+  const handleSaveAccessKey = () => {
+    const nextKey = normalizeCaseAccessKey(keyInput);
+    if (!nextKey) {
+      setError('Enter the case access key first.');
+      return;
+    }
+    saveCaseAccessKey(caseId, nextKey);
+    setAccessKey(nextKey);
+    setKeyInput(nextKey);
+    setError('');
+    setStatusLine('Case access key saved on this device.');
+  };
+
+  const handleDownloadEvidence = async () => {
+    setError('');
+    if (!caseData?.evidenceCid) {
+      setError('No evidence is attached to this case.');
+      return;
+    }
+    if (!accessKey) {
+      setError('Import the case access key before downloading encrypted evidence.');
+      return;
+    }
+
+    try {
+      setStatusLine('Decrypting evidence file...');
+      const encryptedBlob = await fetchBlobFromIPFS(caseData.evidenceCid);
+      const file = await decryptEvidenceBlob(encryptedBlob, accessKey);
+      downloadFile(file);
+      setStatusLine('');
+    } catch (evidenceError) {
+      setStatusLine('');
+      setError(evidenceError instanceof Error ? evidenceError.message : 'Unable to decrypt evidence.');
+    }
+  };
+
   const handleSubmitVote = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
 
     try {
+      if (notes.trim() && !accessKey) {
+        setError('Import the case access key before adding encrypted reviewer notes.');
+        return;
+      }
+
       setStatusLine('Encrypting confidential recommendation with CoFHE...');
       const encryptedRecommendation = await encryptUint8(recommendation);
+
+      const encryptedNotes = notes.trim()
+        ? await encryptTextWithAccessKey(notes.trim(), accessKey)
+        : '';
 
       setStatusLine('Submitting vote on-chain...');
       await submitVote({
         caseId,
         recommendation: encryptedRecommendation,
         severityScore,
-        notes: notes.trim(),
+        notes: encryptedNotes,
       });
 
       await Promise.all([
@@ -265,6 +346,26 @@ export default function ReviewerCaseDetailClient({ caseId }: { caseId: number })
               {error || statusLine}
             </div>
           )}
+          <div className="glass-card p-6 mb-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold mb-2">Case Access Key</h3>
+                <p className="text-sm text-gray-400 mb-4">
+                  Import the key shared by the reporter or admin to decrypt the report body, evidence, and encrypted reviewer notes.
+                </p>
+                <input
+                  value={keyInput}
+                  onChange={(event) => setKeyInput(event.target.value)}
+                  placeholder="Paste case access key"
+                  className="input-modern font-mono text-sm"
+                />
+              </div>
+              <button type="button" onClick={handleSaveAccessKey} className="btn-primary">
+                Save Key
+              </button>
+            </div>
+            {payloadStatus ? <p className="mt-3 text-xs text-amber-300">{payloadStatus}</p> : null}
+          </div>
           <div className="grid lg:grid-cols-[1.3fr_0.7fr] gap-8">
             {/* Left Column - Case Details */}
             <div className="space-y-6">
@@ -317,18 +418,17 @@ export default function ReviewerCaseDetailClient({ caseId }: { caseId: number })
 
                 {caseData.evidenceCid && (
                   <div className="mt-6 pt-6 border-t border-white/5">
-                    <a
-                      href={getIpfsUrl(caseData.evidenceCid)}
-                      target="_blank"
-                      rel="noreferrer"
+                    <button
+                      type="button"
+                      onClick={handleDownloadEvidence}
                       className="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sky-300 hover:bg-white/10 transition-colors"
                     >
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
-                      View Evidence File
-                    </a>
+                      Download Decrypted Evidence
+                    </button>
                   </div>
                 )}
               </div>

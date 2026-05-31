@@ -3,10 +3,9 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./AccessControl.sol";
 
-contract LeakProofDAO is AccessControl {
+contract LeakProofDAO {
     LeakProofAccessControl public immutable accessControl;
     IVotes public immutable governanceToken;
     IERC20 public immutable governanceERC20;
@@ -16,6 +15,7 @@ contract LeakProofDAO is AccessControl {
     struct Proposal {
         address proposer;
         bytes32 descriptionHash;
+        uint256 snapshotBlock;
         uint256 startTime;
         uint256 endTime;
         uint256 forVotes;
@@ -30,6 +30,10 @@ contract LeakProofDAO is AccessControl {
     }
 
     mapping(uint256 => Proposal) public proposals;
+    mapping(uint256 => string) public proposalDescriptions;
+    mapping(uint256 => address[]) private proposalTargets;
+    mapping(uint256 => uint256[]) private proposalValues;
+    mapping(uint256 => bytes[]) private proposalCalldatas;
     mapping(uint256 => mapping(address => bool)) public hasVoted;
     mapping(uint256 => mapping(address => uint8)) public voteRecord;
     uint256 public proposalCount;
@@ -59,6 +63,11 @@ contract LeakProofDAO is AccessControl {
         _;
     }
 
+    modifier onlyGovernanceOrAdmin() {
+        require(msg.sender == address(this) || accessControl.isAdmin(msg.sender), "Governance only");
+        _;
+    }
+
     modifier onlyTokenHolder() {
         require(governanceToken.getVotes(msg.sender) > 0, "No voting power");
         _;
@@ -81,6 +90,7 @@ contract LeakProofDAO is AccessControl {
             targets.length == values.length && values.length == calldatas.length,
             "Action length mismatch"
         );
+        require(targets.length > 0, "Proposal actions required");
         require(
             lastProposalTime[msg.sender] + proposalCooldown <= block.timestamp,
             "Cooldown active"
@@ -88,13 +98,15 @@ contract LeakProofDAO is AccessControl {
 
         uint256 proposalId = proposalCount++;
         bytes32 descriptionHash = keccak256(bytes(description));
+        uint256 snapshotBlock = block.number == 0 ? 0 : block.number - 1;
         uint256 start = block.timestamp + votingDelay;
         uint256 end = start + votingPeriod;
-        uint256 quorum = (governanceERC20.totalSupply() * quorumPercentage) / 100;
+        uint256 quorum = (governanceToken.getPastTotalSupply(snapshotBlock) * quorumPercentage) / 100;
 
         proposals[proposalId] = Proposal({
             proposer: msg.sender,
             descriptionHash: descriptionHash,
+            snapshotBlock: snapshotBlock,
             startTime: start,
             endTime: end,
             forVotes: 0,
@@ -107,6 +119,10 @@ contract LeakProofDAO is AccessControl {
             queuedAt: 0,
             state: ProposalState.Pending
         });
+        proposalDescriptions[proposalId] = description;
+        proposalTargets[proposalId] = targets;
+        proposalValues[proposalId] = values;
+        proposalCalldatas[proposalId] = calldatas;
 
         lastProposalTime[msg.sender] = block.timestamp;
         emit ProposalCreated(proposalId, msg.sender, descriptionHash, start, end);
@@ -123,7 +139,7 @@ contract LeakProofDAO is AccessControl {
         require(block.timestamp <= proposal.endTime, "Voting ended");
         require(!proposal.executed && !proposal.cancelled, "Proposal inactive");
 
-        uint256 weight = governanceToken.getVotes(msg.sender);
+        uint256 weight = governanceToken.getPastVotes(msg.sender, proposal.snapshotBlock);
         require(weight > 0, "No voting power");
 
         hasVoted[proposalId][msg.sender] = true;
@@ -177,23 +193,19 @@ contract LeakProofDAO is AccessControl {
         return proposal.state;
     }
 
-    function executeProposal(
-        uint256 proposalId,
-        address[] calldata targets,
-        uint256[] calldata values,
-        bytes[] calldata calldatas
-    ) external onlyAdmin returns (bytes[] memory) {
+    function executeProposal(uint256 proposalId) external returns (bytes[] memory) {
         Proposal storage proposal = proposals[proposalId];
-        require(
-            targets.length == values.length && values.length == calldatas.length,
-            "Action length mismatch"
-        );
+        require(_finalizeProposal(proposalId) == ProposalState.Succeeded, "Proposal not succeeded");
+        require(!proposal.executed, "Already executed");
+
+        address[] storage targets = proposalTargets[proposalId];
+        uint256[] storage values = proposalValues[proposalId];
+        bytes[] storage calldatas = proposalCalldatas[proposalId];
+        require(targets.length > 0, "Proposal actions missing");
         require(
             proposal.actionsHash == keccak256(abi.encode(targets, values, calldatas)),
             "Proposal actions changed"
         );
-        require(_finalizeProposal(proposalId) == ProposalState.Succeeded, "Proposal not succeeded");
-        require(!proposal.executed, "Already executed");
 
         proposal.executed = true;
         proposal.state = ProposalState.Executed;
@@ -214,24 +226,24 @@ contract LeakProofDAO is AccessControl {
         proposals[proposalId].state = ProposalState.Expired;
     }
 
-    function setPlatformFee(uint256 newFee) external onlyAdmin {
+    function setPlatformFee(uint256 newFee) external onlyGovernanceOrAdmin {
         platformFee = newFee;
         emit PlatformFeeUpdated(newFee);
     }
 
-    function setReviewerReward(uint256 newRewardBP) external onlyAdmin {
+    function setReviewerReward(uint256 newRewardBP) external onlyGovernanceOrAdmin {
         require(newRewardBP <= 1000, "Cannot exceed 10%");
         reviewerRewardBP = newRewardBP;
         emit ReviewerRewardUpdated(newRewardBP);
     }
 
-    function setCaseApprovalThreshold(uint32 newThreshold) external onlyAdmin {
+    function setCaseApprovalThreshold(uint32 newThreshold) external onlyGovernanceOrAdmin {
         require(newThreshold >= 1 && newThreshold <= 10, "Threshold out of range");
         caseApprovalThreshold = newThreshold;
         emit CaseThresholdUpdated(newThreshold);
     }
 
-    function setMaxReviewersPerCase(uint32 newMax) external onlyAdmin {
+    function setMaxReviewersPerCase(uint32 newMax) external onlyGovernanceOrAdmin {
         require(newMax >= 1 && newMax <= 20, "Max reviewers out of range");
         maxReviewersPerCase = newMax;
         emit MaxReviewersUpdated(newMax);
@@ -259,4 +271,14 @@ contract LeakProofDAO is AccessControl {
         Proposal storage proposal = proposals[proposalId];
         return (proposal.forVotes, proposal.againstVotes, proposal.abstainVotes);
     }
+
+    function getProposalActions(uint256 proposalId)
+        external
+        view
+        returns (address[] memory targets, uint256[] memory values, bytes[] memory calldatas)
+    {
+        return (proposalTargets[proposalId], proposalValues[proposalId], proposalCalldatas[proposalId]);
+    }
+
+    receive() external payable {}
 }

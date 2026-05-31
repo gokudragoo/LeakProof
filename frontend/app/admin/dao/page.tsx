@@ -4,10 +4,17 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
+import { encodeFunctionData } from 'viem';
 import Logo from '@/components/Logo';
 import AnimatedCounter from '@/components/AnimatedCounter';
-import { useDAOProposalCount, useDAOProposal, useDAOActions } from '@/hooks/useDAO';
-import { useIsAdmin } from '@/hooks/useAccessControl';
+import {
+  DAO_ABI,
+  useDAOProposalCount,
+  useDAOProposal,
+  useDAOActions,
+  useGovernancePower,
+  useGovernanceTokenActions,
+} from '@/hooks/useDAO';
 import { CONTRACTS, isContractConfigured } from '@/lib/contracts';
 import { formatTimestamp } from '@/lib/report-utils';
 
@@ -17,7 +24,73 @@ const VOTE_TYPES = [
   { label: 'For', value: 1 as const, color: 'emerald' },
 ];
 
-function ProposalCard({ id, onVote }: { id: number; onVote: (id: number, type: 0 | 1 | 2) => void }) {
+const DAO_PARAMETER_OPTIONS = [
+  { key: 'caseApprovalThreshold', label: 'Case Approval Threshold', min: 1, max: 10 },
+  { key: 'maxReviewersPerCase', label: 'Max Reviewers Per Case', min: 1, max: 20 },
+  { key: 'reviewerRewardBP', label: 'Reviewer Reward BP', min: 0, max: 1000 },
+  { key: 'platformFee', label: 'Platform Fee Wei', min: 0, max: Number.MAX_SAFE_INTEGER },
+] as const;
+
+type DAOParameterKey = typeof DAO_PARAMETER_OPTIONS[number]['key'];
+
+function compactTokenAmount(value: string) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return value;
+  }
+  return numeric.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function buildParameterProposal(kind: DAOParameterKey, rawValue: string) {
+  if (!/^\d+$/.test(rawValue.trim())) {
+    throw new Error('Proposal value must be a whole number.');
+  }
+
+  const value = BigInt(rawValue.trim());
+  const asNumber = Number(value);
+  const option = DAO_PARAMETER_OPTIONS.find((item) => item.key === kind);
+  if (!option) {
+    throw new Error('Unsupported proposal type.');
+  }
+  if (!Number.isSafeInteger(asNumber) || asNumber < option.min || asNumber > option.max) {
+    throw new Error(`${option.label} must be between ${option.min} and ${option.max}.`);
+  }
+
+  switch (kind) {
+    case 'platformFee':
+      return {
+        description: `Set platform fee to ${value.toString()} wei`,
+        calldata: encodeFunctionData({ abi: DAO_ABI, functionName: 'setPlatformFee', args: [value] }),
+      };
+    case 'reviewerRewardBP':
+      return {
+        description: `Set reviewer reward to ${value.toString()} basis points`,
+        calldata: encodeFunctionData({ abi: DAO_ABI, functionName: 'setReviewerReward', args: [value] }),
+      };
+    case 'caseApprovalThreshold':
+      return {
+        description: `Set case approval threshold to ${value.toString()}`,
+        calldata: encodeFunctionData({ abi: DAO_ABI, functionName: 'setCaseApprovalThreshold', args: [asNumber] }),
+      };
+    case 'maxReviewersPerCase':
+      return {
+        description: `Set max reviewers per case to ${value.toString()}`,
+        calldata: encodeFunctionData({ abi: DAO_ABI, functionName: 'setMaxReviewersPerCase', args: [asNumber] }),
+      };
+    default:
+      throw new Error('Unsupported proposal type.');
+  }
+}
+
+function ProposalCard({
+  id,
+  onVote,
+  onExecute,
+}: {
+  id: number;
+  onVote: (id: number, type: 0 | 1 | 2) => void;
+  onExecute: (id: number) => void;
+}) {
   const { proposal, isLoading } = useDAOProposal(id);
   const [selectedVote, setSelectedVote] = useState<0 | 1 | 2 | null>(null);
 
@@ -60,8 +133,12 @@ function ProposalCard({ id, onVote }: { id: number; onVote: (id: number, type: 0
         </span>
       </div>
 
-      <div className="text-sm text-gray-400 mb-4 font-mono break-all">
-        {proposal.descriptionHash.slice(0, 40)}...
+      <div className="text-sm text-gray-300 mb-2">
+        {proposal.description || 'On-chain parameter proposal'}
+      </div>
+
+      <div className="text-xs text-gray-500 mb-4 font-mono break-all">
+        Hash {proposal.descriptionHash.slice(0, 40)}... · Snapshot block {proposal.snapshotBlock} · Actions {proposal.actionCount}
       </div>
 
       <div className="grid grid-cols-3 gap-3 mb-4 text-center">
@@ -122,17 +199,29 @@ function ProposalCard({ id, onVote }: { id: number; onVote: (id: number, type: 0
           </button>
         </div>
       )}
+
+      {proposal.stateLabel === 'Succeeded' && (
+        <button
+          onClick={() => onExecute(id)}
+          className="w-full rounded-lg bg-emerald-500 px-6 py-2 text-sm font-medium text-white"
+        >
+          Execute Proposal
+        </button>
+      )}
     </div>
   );
 }
 
 export default function DAOPage() {
   const { isConnected, address } = useAccount();
-  const { data: adminFlag } = useIsAdmin(address);
   const { count, isLoading: countLoading } = useDAOProposalCount();
-  const { propose, castVote, isPending } = useDAOActions();
+  const { propose, castVote, executeProposal, isPending } = useDAOActions();
+  const { balance, votes, balanceLabel, votesLabel, refetch: refetchGovernancePower } = useGovernancePower(address);
+  const { delegateVotes, isPending: delegatePending } = useGovernanceTokenActions();
 
   const [description, setDescription] = useState('');
+  const [proposalKind, setProposalKind] = useState<DAOParameterKey>('caseApprovalThreshold');
+  const [proposalValue, setProposalValue] = useState('2');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const daoReady = isContractConfigured(CONTRACTS.DAO);
@@ -144,11 +233,27 @@ export default function DAOPage() {
       return;
     }
     try {
-      await propose(description);
+      const action = buildParameterProposal(proposalKind, proposalValue);
+      await propose(description.trim() || action.description, [CONTRACTS.DAO], [0n], [action.calldata]);
       setNotice('Proposal created successfully.');
       setDescription('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create proposal');
+    }
+  };
+
+  const handleDelegateVotes = async () => {
+    setError('');
+    if (!address) {
+      setError('Connect your wallet before delegating voting power.');
+      return;
+    }
+    try {
+      await delegateVotes(address);
+      refetchGovernancePower();
+      setNotice('Voting power activated for your wallet.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to activate voting power');
     }
   };
 
@@ -161,7 +266,18 @@ export default function DAOPage() {
     }
   };
 
+  const handleExecute = async (proposalId: number) => {
+    try {
+      await executeProposal(proposalId);
+      setNotice(`Proposal #${proposalId} executed on-chain.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to execute proposal');
+    }
+  };
+
   const proposalIds = Array.from({ length: count }, (_, i) => count - 1 - i);
+  const selectedOption = DAO_PARAMETER_OPTIONS.find((item) => item.key === proposalKind);
+  const needsDelegation = balance > 0n && votes === 0n;
 
   return (
     <div className="min-h-screen bg-[#050508]">
@@ -250,23 +366,58 @@ export default function DAOPage() {
                 <div className="text-3xl font-bold text-purple-400">7d</div>
               </div>
               <div className="stats-card">
-                <div className="text-sm text-gray-500 mb-2">Quorum</div>
-                <div className="text-3xl font-bold text-amber-400">4%</div>
+                <div className="text-sm text-gray-500 mb-2">Voting Power</div>
+                <div className="text-3xl font-bold text-amber-400">{compactTokenAmount(votesLabel)}</div>
               </div>
             </div>
+
+            {needsDelegation && (
+              <div className="mb-10 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-200">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="font-semibold">Activate token voting</div>
+                    <div className="text-sm text-amber-100/80">Balance {compactTokenAmount(balanceLabel)} LPROOF · delegated votes are required for checkpointed governance.</div>
+                  </div>
+                  <button
+                    onClick={handleDelegateVotes}
+                    disabled={delegatePending}
+                    className="rounded-xl bg-amber-500 px-5 py-2 text-sm font-semibold text-black disabled:opacity-50"
+                  >
+                    {delegatePending ? 'Activating...' : 'Delegate to Self'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="glass-card p-6 mb-10">
               <h3 className="text-xl font-semibold mb-4">Create New Proposal</h3>
               <p className="text-sm text-gray-400 mb-4">
                 Submit a governance proposal. Requires voting power (LPROOF tokens). Voting opens after a 1-day delay.
               </p>
-              <div className="flex gap-4">
+              <div className="grid gap-4 lg:grid-cols-[1fr_160px_1fr_auto]">
+                <select
+                  value={proposalKind}
+                  onChange={(e) => setProposalKind(e.target.value as DAOParameterKey)}
+                  className="input-modern"
+                >
+                  {DAO_PARAMETER_OPTIONS.map((option) => (
+                    <option key={option.key} value={option.key}>{option.label}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min={selectedOption?.min}
+                  max={selectedOption?.max}
+                  value={proposalValue}
+                  onChange={(e) => setProposalValue(e.target.value)}
+                  className="input-modern"
+                />
                 <input
                   type="text"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Proposal description..."
-                  className="input-modern flex-1"
+                  className="input-modern"
                 />
                 <button
                   onClick={handleCreateProposal}
@@ -286,7 +437,7 @@ export default function DAOPage() {
             ) : (
               <div className="space-y-4">
                 {proposalIds.map(id => (
-                  <ProposalCard key={id} id={id} onVote={handleVote} />
+                  <ProposalCard key={id} id={id} onVote={handleVote} onExecute={handleExecute} />
                 ))}
               </div>
             )}

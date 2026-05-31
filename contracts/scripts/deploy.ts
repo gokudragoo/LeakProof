@@ -50,6 +50,7 @@ async function main() {
   const timeLockedDisclosure = await ethers.deployContract("TimeLockedDisclosure", [
     accessControlAddress,
     coreAddress,
+    disclosureControllerAddress,
   ]);
   await timeLockedDisclosure.waitForDeployment();
   const timeLockedDisclosureAddress = await timeLockedDisclosure.getAddress();
@@ -61,6 +62,7 @@ async function main() {
   await (await core.setReviewerHub(reviewerHubAddress)).wait();
   await (await core.setReputationRegistry(reputationAddress)).wait();
   await (await reputation.setCore(coreAddress)).wait();
+  await (await disclosureController.setTimeLockController(timeLockedDisclosureAddress)).wait();
 
   const frontendEnvPath = path.resolve(__dirname, "../../frontend/.env.local");
   const currentFrontendEnv = fs.existsSync(frontendEnvPath)

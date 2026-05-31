@@ -131,6 +131,7 @@ contract ReviewerHub {
         ReviewerAssignment storage assignment = assignments[caseId][msg.sender];
 
         require(assignment.reviewer == msg.sender, "Not assigned");
+        require(accessControl.isReviewer(msg.sender), "Reviewer role required");
         require(!assignment.hasVoted, "Already voted");
 
         _ensureConsensusInitialized(caseId);
@@ -156,7 +157,10 @@ contract ReviewerHub {
         require(
             accessControl.isAdmin(msg.sender) ||
                 core.getCaseReporter(caseId) == msg.sender ||
-                assignments[caseId][msg.sender].reviewer == msg.sender,
+                (
+                    accessControl.isReviewer(msg.sender) &&
+                    assignments[caseId][msg.sender].reviewer == msg.sender
+                ),
             "Not authorized"
         );
 

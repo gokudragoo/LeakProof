@@ -3,6 +3,7 @@
 import { transformEncryptedReturnTypes } from "@cofhe/abi";
 import { usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { CONTRACTS, REVIEWER_HUB_ABI } from "@/lib/contracts";
+import { recordTransactionObservation } from "@/lib/tx-observer";
 import type {
   ConfidentialVoteSummary,
   EncryptedHandle,
@@ -20,15 +21,24 @@ export function useReviewerHub() {
       throw new Error("Wallet client unavailable");
     }
 
-    const hash = await writeContractAsync({
-      address: CONTRACTS.REVIEWER_HUB,
-      abi: REVIEWER_HUB_ABI,
-      functionName: "assignReviewer",
-      args: [BigInt(caseId), reviewer as `0x${string}`],
-    });
+    try {
+      const hash = await writeContractAsync({
+        address: CONTRACTS.REVIEWER_HUB,
+        abi: REVIEWER_HUB_ABI,
+        functionName: "assignReviewer",
+        args: [BigInt(caseId), reviewer as `0x${string}`],
+      });
 
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    return { hash, receipt };
+      recordTransactionObservation("Assign reviewer", "submitted", { hash });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      recordTransactionObservation("Assign reviewer", "confirmed", { hash });
+      return { hash, receipt };
+    } catch (actionError) {
+      recordTransactionObservation("Assign reviewer", "failed", {
+        message: actionError instanceof Error ? actionError.message : "Unknown transaction failure",
+      });
+      throw actionError;
+    }
   };
 
   const setApprovalThreshold = async (caseId: number, threshold: number) => {
@@ -36,15 +46,24 @@ export function useReviewerHub() {
       throw new Error("Wallet client unavailable");
     }
 
-    const hash = await writeContractAsync({
-      address: CONTRACTS.REVIEWER_HUB,
-      abi: REVIEWER_HUB_ABI,
-      functionName: "setApprovalThreshold",
-      args: [BigInt(caseId), BigInt(threshold)],
-    });
+    try {
+      const hash = await writeContractAsync({
+        address: CONTRACTS.REVIEWER_HUB,
+        abi: REVIEWER_HUB_ABI,
+        functionName: "setApprovalThreshold",
+        args: [BigInt(caseId), BigInt(threshold)],
+      });
 
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    return { hash, receipt };
+      recordTransactionObservation("Set approval threshold", "submitted", { hash });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      recordTransactionObservation("Set approval threshold", "confirmed", { hash });
+      return { hash, receipt };
+    } catch (actionError) {
+      recordTransactionObservation("Set approval threshold", "failed", {
+        message: actionError instanceof Error ? actionError.message : "Unknown transaction failure",
+      });
+      throw actionError;
+    }
   };
 
   return {
@@ -139,20 +158,29 @@ export function useSubmitVote() {
       throw new Error("Wallet client unavailable");
     }
 
-    const hash = await writeContractAsync({
-      address: CONTRACTS.REVIEWER_HUB,
-      abi: REVIEWER_HUB_ABI,
-      functionName: "submitVote",
-      args: [
-        BigInt(submission.caseId),
-        submission.recommendation,
-        submission.severityScore,
-        submission.notes,
-      ],
-    } as Parameters<typeof writeContractAsync>[0]);
+    try {
+      const hash = await writeContractAsync({
+        address: CONTRACTS.REVIEWER_HUB,
+        abi: REVIEWER_HUB_ABI,
+        functionName: "submitVote",
+        args: [
+          BigInt(submission.caseId),
+          submission.recommendation,
+          submission.severityScore,
+          submission.notes,
+        ],
+      } as Parameters<typeof writeContractAsync>[0]);
 
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    return { hash, receipt };
+      recordTransactionObservation("Submit confidential vote", "submitted", { hash });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      recordTransactionObservation("Submit confidential vote", "confirmed", { hash });
+      return { hash, receipt };
+    } catch (actionError) {
+      recordTransactionObservation("Submit confidential vote", "failed", {
+        message: actionError instanceof Error ? actionError.message : "Unknown transaction failure",
+      });
+      throw actionError;
+    }
   };
 
   return {
@@ -172,15 +200,24 @@ export function useAuthorizeVoteSummaryAccess() {
       throw new Error("Wallet client unavailable");
     }
 
-    const hash = await writeContractAsync({
-      address: CONTRACTS.REVIEWER_HUB,
-      abi: REVIEWER_HUB_ABI,
-      functionName: "authorizeVoteSummaryAccess",
-      args: [BigInt(caseId)],
-    });
+    try {
+      const hash = await writeContractAsync({
+        address: CONTRACTS.REVIEWER_HUB,
+        abi: REVIEWER_HUB_ABI,
+        functionName: "authorizeVoteSummaryAccess",
+        args: [BigInt(caseId)],
+      });
 
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    return { hash, receipt };
+      recordTransactionObservation("Authorize vote summary", "submitted", { hash });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      recordTransactionObservation("Authorize vote summary", "confirmed", { hash });
+      return { hash, receipt };
+    } catch (actionError) {
+      recordTransactionObservation("Authorize vote summary", "failed", {
+        message: actionError instanceof Error ? actionError.message : "Unknown transaction failure",
+      });
+      throw actionError;
+    }
   };
 
   return {
@@ -204,21 +241,30 @@ export function usePublishConsensus() {
       throw new Error("Wallet client unavailable");
     }
 
-    const hash = await writeContractAsync({
-      address: CONTRACTS.REVIEWER_HUB,
-      abi: REVIEWER_HUB_ABI,
-      functionName: "publishConsensus",
-      args: [
-        BigInt(caseId),
-        summary.approvals,
-        summary.rejects,
-        summary.escalations,
-        signatures,
-      ],
-    });
+    try {
+      const hash = await writeContractAsync({
+        address: CONTRACTS.REVIEWER_HUB,
+        abi: REVIEWER_HUB_ABI,
+        functionName: "publishConsensus",
+        args: [
+          BigInt(caseId),
+          summary.approvals,
+          summary.rejects,
+          summary.escalations,
+          signatures,
+        ],
+      });
 
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    return { hash, receipt };
+      recordTransactionObservation("Publish consensus", "submitted", { hash });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      recordTransactionObservation("Publish consensus", "confirmed", { hash });
+      return { hash, receipt };
+    } catch (actionError) {
+      recordTransactionObservation("Publish consensus", "failed", {
+        message: actionError instanceof Error ? actionError.message : "Unknown transaction failure",
+      });
+      throw actionError;
+    }
   };
 
   return {

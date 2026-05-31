@@ -1,0 +1,63 @@
+name: Wave 5 Production Readiness
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npm run compile --workspace contracts
+
+      - name: Hardhat unit tests
+        run: npm run test:hardhat --workspace contracts
+
+      - name: Frontend build
+        run: npm run build --workspace frontend
+
+      - name: Audit report
+        run: npm run audit:report
+
+      - name: Generate deployment manifest
+        run: npm run manifest --workspace contracts
+
+      - name: Sepolia deployment bytecode check
+        if: ${{ secrets.SEPOLIA_RPC_URL != '' }}
+        env:
+          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+        run: npm run check:deployment --workspace contracts
+
+      - name: Sepolia CoFHE smoke test
+        if: ${{ secrets.SEPOLIA_RPC_URL != '' && secrets.SEPOLIA_PRIVATE_KEY != '' }}
+        env:
+          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+          PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
+        run: npm run test --workspace contracts
+
+      - name: Upload readiness reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wave5-readiness
+          path: |
+            reports/
+            deployments/sepolia.manifest.json
+

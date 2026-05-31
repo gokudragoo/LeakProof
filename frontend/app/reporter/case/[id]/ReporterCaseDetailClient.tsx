@@ -3,12 +3,24 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount } from 'wagmi';
+import { useAccount, useSignMessage } from 'wagmi';
 import Logo from '@/components/Logo';
 import { getCaseCategoryLabel } from '@/lib/contracts';
-import { fetchJsonFromIPFS, getIpfsUrl } from '@/lib/pinata';
-import { formatTimestamp } from '@/lib/report-utils';
-import { useCase } from '@/hooks/useCaseRegistry';
+import {
+  decryptEvidenceBlob,
+  decryptReportPayload,
+  downloadFile,
+  encryptEvidenceFile,
+  isEncryptedJsonEnvelope,
+  loadCaseAccessKey,
+  normalizeCaseAccessKey,
+  saveCaseAccessKey,
+} from '@/lib/case-crypto';
+import { fetchBlobFromIPFS, fetchJsonFromIPFS, uploadFileToIPFS } from '@/lib/pinata';
+import { EMPTY_DIGEST, formatTimestamp, sha256File, shortAddress } from '@/lib/report-utils';
+import { buildUploadAuthMessage, type UploadAuthorization } from '@/lib/upload-auth';
+import { useDisclosureCtrl } from '@/hooks/useDisclosureCtrl';
+import { useAddEvidence, useCase, useEvidenceUpdates, useUpdateCaseStatus } from '@/hooks/useCaseRegistry';
 import type { ReportPayload } from '@/types';
 
 function StatusBadge({ status }: { status: number }) {
@@ -24,8 +36,25 @@ function StatusBadge({ status }: { status: number }) {
 
 export default function ReporterCaseDetailClient({ caseId }: { caseId: number }) {
   const { isConnected, address } = useAccount();
-  const { caseData, isLoading } = useCase(caseId);
+  const { signMessageAsync } = useSignMessage();
+  const { caseData, isLoading, refetch } = useCase(caseId);
+  const { addEvidence, isPending: addEvidencePending } = useAddEvidence();
+  const { updateStatus, isPending: updateStatusPending } = useUpdateCaseStatus();
+  const { requestAccess, isPending: disclosurePending } = useDisclosureCtrl();
+  const { updates, refetch: refetchEvidenceUpdates } = useEvidenceUpdates(caseId);
   const [payload, setPayload] = useState<ReportPayload | null>(null);
+  const [accessKey, setAccessKey] = useState('');
+  const [keyInput, setKeyInput] = useState('');
+  const [payloadStatus, setPayloadStatus] = useState('');
+  const [actionNotice, setActionNotice] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [additionalEvidence, setAdditionalEvidence] = useState<File | null>(null);
+
+  useEffect(() => {
+    const savedKey = loadCaseAccessKey(caseId);
+    setAccessKey(savedKey);
+    setKeyInput(savedKey);
+  }, [caseId]);
 
   useEffect(() => {
     let active = true;
@@ -35,18 +64,123 @@ export default function ReporterCaseDetailClient({ caseId }: { caseId: number })
       return;
     }
 
-    fetchJsonFromIPFS<ReportPayload>(caseData.reportCid)
-      .then((nextPayload) => {
-        if (active) setPayload(nextPayload);
+    setPayloadStatus('');
+    fetchJsonFromIPFS<ReportPayload | unknown>(caseData.reportCid)
+      .then(async (nextPayload) => {
+        if (!active) return;
+        if (isEncryptedJsonEnvelope(nextPayload)) {
+          if (!accessKey) {
+            setPayload(null);
+            setPayloadStatus('Import the case access key to decrypt this report.');
+            return;
+          }
+          setPayload(await decryptReportPayload(nextPayload, accessKey));
+          setPayloadStatus('');
+          return;
+        }
+
+        setPayload(nextPayload as ReportPayload);
+        setPayloadStatus('Legacy plaintext report loaded.');
       })
       .catch(() => {
-        if (active) setPayload(null);
+        if (active) {
+          setPayload(null);
+          setPayloadStatus('Report payload could not be decrypted or loaded.');
+        }
       });
 
     return () => {
       active = false;
     };
-  }, [caseData?.reportCid]);
+  }, [accessKey, caseData?.reportCid]);
+
+  const isReporter = Boolean(
+    address && caseData?.reporter && address.toLowerCase() === caseData.reporter.toLowerCase()
+  );
+
+  const handleSaveAccessKey = () => {
+    const nextKey = normalizeCaseAccessKey(keyInput);
+    if (!nextKey) {
+      setActionError('Enter the case access key first.');
+      return;
+    }
+    saveCaseAccessKey(caseId, nextKey);
+    setAccessKey(nextKey);
+    setKeyInput(nextKey);
+    setActionError('');
+    setActionNotice('Case access key saved on this device.');
+  };
+
+  const handleDownloadEvidence = async (cid: string) => {
+    setActionError('');
+    setActionNotice('');
+    if (!accessKey) {
+      setActionError('Import the case access key before downloading encrypted evidence.');
+      return;
+    }
+
+    try {
+      const encryptedBlob = await fetchBlobFromIPFS(cid);
+      const file = await decryptEvidenceBlob(encryptedBlob, accessKey);
+      downloadFile(file);
+      setActionNotice('Encrypted evidence decrypted and downloaded.');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to decrypt evidence.');
+    }
+  };
+
+  const handleRequestDisclosure = async () => {
+    setActionError('');
+    setActionNotice('');
+    try {
+      await requestAccess(caseId, 3);
+      setActionNotice('Full-report disclosure request submitted.');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to request disclosure.');
+    }
+  };
+
+  const handleCloseCase = async () => {
+    setActionError('');
+    setActionNotice('');
+    try {
+      await updateStatus(caseId, 5);
+      await refetch();
+      setActionNotice('Case closed on-chain.');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to close this case.');
+    }
+  };
+
+  const handleAddEvidence = async () => {
+    setActionError('');
+    setActionNotice('');
+    if (!additionalEvidence) {
+      setActionError('Choose an evidence file first.');
+      return;
+    }
+    if (!accessKey) {
+      setActionError('Import the case access key before adding encrypted evidence.');
+      return;
+    }
+    if (!address) {
+      setActionError('Connect your wallet before adding evidence.');
+      return;
+    }
+
+    try {
+      const encryptedEvidence = await encryptEvidenceFile(additionalEvidence, accessKey);
+      const auth = await createUploadAuthorization(address, signMessageAsync);
+      const evidenceCid = await uploadFileToIPFS(encryptedEvidence, encryptedEvidence.name, auth);
+      const evidenceDigest = await sha256File(encryptedEvidence);
+      await addEvidence({ caseId, evidenceCid, evidenceDigest: evidenceDigest || EMPTY_DIGEST });
+      await Promise.all([refetch(), refetchEvidenceUpdates()]);
+      setAdditionalEvidence(null);
+      setActionNotice('Additional encrypted evidence added on-chain.');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to add evidence.');
+    }
+  };
 
   if (!Number.isFinite(caseId) || caseId <= 0) {
     return (
@@ -111,6 +245,48 @@ export default function ReporterCaseDetailClient({ caseId }: { caseId: number })
           </div>
         ) : (
           <div className="space-y-6">
+            {(actionNotice || actionError) && (
+              <div className={`rounded-2xl border p-4 text-sm ${
+                actionError
+                  ? 'border-red-500/20 bg-red-500/10 text-red-300'
+                  : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+              }`}>
+                {actionError || actionNotice}
+              </div>
+            )}
+
+            <div className="glass-card p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold mb-2">Case Access Key</h3>
+                  <p className="text-sm text-gray-400 mb-4">
+                    The report body and evidence are encrypted before IPFS upload. Keep this key private and share it only with approved reviewers.
+                  </p>
+                  <input
+                    value={keyInput}
+                    onChange={(event) => setKeyInput(event.target.value)}
+                    placeholder="Paste case access key"
+                    className="input-modern font-mono text-sm"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button type="button" onClick={handleSaveAccessKey} className="btn-primary">
+                    Save Key
+                  </button>
+                  {accessKey ? (
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard?.writeText(accessKey)}
+                      className="btn-secondary"
+                    >
+                      Copy Key
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              {payloadStatus ? <p className="mt-3 text-xs text-amber-300">{payloadStatus}</p> : null}
+            </div>
+
             <div className="glass-card p-6">
               <div className="flex flex-wrap gap-3 mb-6">
                 <StatusBadge status={caseData.status} />
@@ -152,18 +328,84 @@ export default function ReporterCaseDetailClient({ caseId }: { caseId: number })
 
               {caseData.evidenceCid && (
                 <div className="mb-6 pt-6 border-t border-white/5">
-                  <div className="text-xs text-gray-500 mb-2">Evidence File</div>
-                  <a
-                    href={getIpfsUrl(caseData.evidenceCid)}
-                    target="_blank"
-                    rel="noreferrer"
+                  <div className="text-xs text-gray-500 mb-2">Latest Evidence File</div>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadEvidence(caseData.evidenceCid)}
                     className="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sky-300 hover:bg-white/10"
                   >
-                    View Evidence
-                  </a>
+                    Download Decrypted Evidence
+                  </button>
                 </div>
               )}
             </div>
+
+            {isReporter ? (
+              <div className="glass-card p-6">
+                <h3 className="text-lg font-semibold mb-4">Reporter Actions</h3>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="mb-3 text-sm font-semibold text-white">Add Encrypted Evidence</div>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt"
+                      onChange={(event) => setAdditionalEvidence(event.target.files?.[0] ?? null)}
+                      className="mb-4 block w-full text-sm text-gray-400 file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddEvidence}
+                      disabled={addEvidencePending}
+                      className="btn-primary"
+                    >
+                      {addEvidencePending ? 'Adding...' : 'Add Evidence'}
+                    </button>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="mb-3 text-sm font-semibold text-white">Disclosure & Closure</div>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={handleRequestDisclosure}
+                        disabled={disclosurePending}
+                        className="btn-secondary"
+                      >
+                        Request Disclosure
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCloseCase}
+                        disabled={updateStatusPending || ![3, 4, 6].includes(caseData.status)}
+                        className="btn-secondary"
+                      >
+                        Close Case
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {updates.length > 0 ? (
+                  <div className="mt-6">
+                    <div className="mb-3 text-sm font-semibold text-white">Evidence History</div>
+                    <div className="space-y-2">
+                      {updates.map((update, index) => (
+                        <div key={`${update.evidenceCid}-${index}`} className="flex flex-col gap-2 rounded-xl bg-black/20 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                          <span className="text-gray-400">
+                            {formatTimestamp(update.submittedAt)} by {shortAddress(update.submittedBy)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadEvidence(update.evidenceCid)}
+                            className="text-sky-300 hover:text-sky-200"
+                          >
+                            Download
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="glass-card p-6">
               <h3 className="text-lg font-semibold mb-4">Case Timeline</h3>
@@ -199,7 +441,7 @@ export default function ReporterCaseDetailClient({ caseId }: { caseId: number })
             <div className="glass-card p-6">
               <h3 className="text-lg font-semibold mb-4">Disclosure Policy</h3>
               <p className="text-sm text-gray-400">
-                Your report is encrypted and stored securely. Identity reveal is only possible through multi-admin approval or time-locked disclosure. Your wallet address serves as your pseudonymous identifier.
+                Your report body and evidence are encrypted before IPFS upload. Identity reveal is only possible through disclosure controls. Your wallet address serves as your pseudonymous identifier.
               </p>
             </div>
           </div>
@@ -207,4 +449,15 @@ export default function ReporterCaseDetailClient({ caseId }: { caseId: number })
       </main>
     </div>
   );
+}
+
+async function createUploadAuthorization(
+  address: `0x${string}`,
+  signMessageAsync: (args: { message: string }) => Promise<`0x${string}`>
+): Promise<UploadAuthorization> {
+  const timestamp = Date.now();
+  const nonce = crypto.randomUUID();
+  const message = buildUploadAuthMessage(address, timestamp, nonce);
+  const signature = await signMessageAsync({ message });
+  return { address, timestamp, nonce, signature };
 }

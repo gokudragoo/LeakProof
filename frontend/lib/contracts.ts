@@ -20,6 +20,30 @@ export const ACCESS_CONTROL_ABI = [
     type: "function",
   },
   {
+    inputs: [{ internalType: "address", name: "newAdmin", type: "address" }],
+    name: "transferDefaultAdmin",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "newAdmin", type: "address" },
+      { internalType: "address", name: "previousAdmin", type: "address" },
+    ],
+    name: "rotateDefaultAdmin",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "account", type: "address" }],
+    name: "revokeDefaultAdminRole",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [{ internalType: "address", name: "account", type: "address" }],
     name: "grantReviewerRole",
     outputs: [],
@@ -29,6 +53,16 @@ export const ACCESS_CONTROL_ABI = [
   {
     inputs: [{ internalType: "address", name: "account", type: "address" }],
     name: "grantReporterRole",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "compromisedReviewer", type: "address" },
+      { internalType: "address", name: "replacementReviewer", type: "address" },
+    ],
+    name: "recoverReviewerRole",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -82,6 +116,17 @@ export const CORE_ABI = [
     type: "function",
   },
   {
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "string", name: "evidenceCid", type: "string" },
+      { internalType: "bytes32", name: "evidenceDigest", type: "bytes32" },
+    ],
+    name: "addEvidence",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     anonymous: false,
     inputs: [
       { indexed: true, internalType: "uint256", name: "caseId", type: "uint256" },
@@ -92,6 +137,18 @@ export const CORE_ABI = [
       { indexed: false, internalType: "uint256", name: "timestamp", type: "uint256" },
     ],
     name: "CaseCreated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "uint256", name: "caseId", type: "uint256" },
+      { indexed: true, internalType: "address", name: "submittedBy", type: "address" },
+      { indexed: false, internalType: "string", name: "evidenceCid", type: "string" },
+      { indexed: false, internalType: "bytes32", name: "evidenceDigest", type: "bytes32" },
+      { indexed: false, internalType: "uint256", name: "timestamp", type: "uint256" },
+    ],
+    name: "EvidenceAdded",
     type: "event",
   },
   {
@@ -167,6 +224,25 @@ export const CORE_ABI = [
     inputs: [{ internalType: "address", name: "reporter", type: "address" }],
     name: "getCasesByReporter",
     outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "getEvidenceUpdates",
+    outputs: [
+      {
+        components: [
+          { internalType: "string", name: "evidenceCid", type: "string" },
+          { internalType: "bytes32", name: "evidenceDigest", type: "bytes32" },
+          { internalType: "address", name: "submittedBy", type: "address" },
+          { internalType: "uint64", name: "submittedAt", type: "uint64" },
+        ],
+        internalType: "struct LeakProofCore.EvidenceUpdate[]",
+        name: "",
+        type: "tuple[]",
+      },
+    ],
     stateMutability: "view",
     type: "function",
   },
@@ -400,10 +476,83 @@ export const DISCLOSURE_CTRL_ABI = [
   {
     inputs: [
       { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "uint256", name: "requestIndex", type: "uint256" },
+      { internalType: "bool", name: "approved", type: "bool" },
+    ],
+    name: "resolveDisclosureRequest",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "address", name: "reporter", type: "address" },
+    ],
+    name: "revealIdentity",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
       { internalType: "address", name: "grantee", type: "address" },
     ],
     name: "getPermissionLevel",
     outputs: [{ internalType: "uint8", name: "", type: "uint8" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "getDisclosureRequests",
+    outputs: [
+      {
+        components: [
+          { internalType: "address", name: "requester", type: "address" },
+          { internalType: "uint256", name: "caseId", type: "uint256" },
+          { internalType: "uint8", name: "requestedLevel", type: "uint8" },
+          { internalType: "bool", name: "approved", type: "bool" },
+          { internalType: "bool", name: "resolved", type: "bool" },
+          { internalType: "uint256", name: "timestamp", type: "uint256" },
+        ],
+        internalType: "struct DisclosureController.DisclosureRequest[]",
+        name: "",
+        type: "tuple[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "getDisclosureLog",
+    outputs: [
+      {
+        components: [
+          { internalType: "address", name: "grantee", type: "address" },
+          { internalType: "uint256", name: "caseId", type: "uint256" },
+          { internalType: "uint8", name: "level", type: "uint8" },
+          { internalType: "bool", name: "revoked", type: "bool" },
+          { internalType: "uint256", name: "grantedAt", type: "uint256" },
+          { internalType: "uint256", name: "expiresAt", type: "uint256" },
+        ],
+        internalType: "struct DisclosureController.DisclosurePermission[]",
+        name: "",
+        type: "tuple[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "address", name: "reporter", type: "address" },
+    ],
+    name: "hasIdentityRevealed",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
     stateMutability: "view",
     type: "function",
   },

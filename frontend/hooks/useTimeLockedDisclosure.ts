@@ -41,6 +41,20 @@ export const TIMELOCKED_ABI = [
     type: "function",
   },
   {
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "uint256", name: "lockDuration", type: "uint256" },
+      { internalType: "uint8", name: "requiredApprovals", type: "uint8" },
+      { internalType: "string", name: "disclosureType", type: "string" },
+      { internalType: "address", name: "grantee", type: "address" },
+      { internalType: "uint8", name: "permissionLevel", type: "uint8" },
+    ],
+    name: "createDisclosureLockForAccess",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
     name: "approveDisclosureUnlock",
     outputs: [],
@@ -68,6 +82,37 @@ export const TIMELOCKED_ABI = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "revokeDisclosureLock",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "caseId", type: "uint256" },
+      { internalType: "string", name: "reason", type: "string" },
+    ],
+    name: "initiateEmergencyOverride",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "executeEmergencyOverride",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "caseId", type: "uint256" }],
+    name: "cancelEmergencyOverride",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
 ] as const;
 
 export function useDisclosureLock(caseId: number) {
@@ -79,10 +124,12 @@ export function useDisclosureLock(caseId: number) {
     query: { enabled: caseId > 0 && isContractConfigured(TIMELOCKED_CONTRACT) },
   });
 
+  const unlockTimestamp = Number(data?.[0] ?? 0n);
+
   return {
-    lock: data
+    lock: data && unlockTimestamp > 0
       ? {
-          unlockTimestamp: Number(data[0]),
+          unlockTimestamp,
           emergencyUnlock: Boolean(data[1]),
           revoked: Boolean(data[2]),
           requiredApprovals: Number(data[3]),
@@ -115,6 +162,33 @@ export function useTimeLockedDisclosureActions() {
       abi: TIMELOCKED_ABI,
       functionName: "createDisclosureLock",
       args: [BigInt(caseId), BigInt(lockDuration), requiredApprovals, disclosureType],
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    return { hash, receipt };
+  };
+
+  const createAccessLock = async (
+    caseId: number,
+    lockDuration: number,
+    requiredApprovals: number,
+    disclosureType: string,
+    grantee: string,
+    permissionLevel: number
+  ) => {
+    if (!publicClient) throw new Error("Wallet client unavailable");
+    ensureConfigured();
+    const hash = await writeContractAsync({
+      address: contract,
+      abi: TIMELOCKED_ABI,
+      functionName: "createDisclosureLockForAccess",
+      args: [
+        BigInt(caseId),
+        BigInt(lockDuration),
+        requiredApprovals,
+        disclosureType,
+        grantee as `0x${string}`,
+        permissionLevel,
+      ],
     });
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     return { hash, receipt };
@@ -159,5 +233,80 @@ export function useTimeLockedDisclosureActions() {
     return { hash, receipt };
   };
 
-  return { createLock, approveUnlock, triggerUnlock, toggleEmergencyPause, isPending, error };
+  const revokeLock = async (caseId: number) => {
+    if (!publicClient) throw new Error("Wallet client unavailable");
+    ensureConfigured();
+    const hash = await writeContractAsync({
+      address: contract,
+      abi: TIMELOCKED_ABI,
+      functionName: "revokeDisclosureLock",
+      args: [BigInt(caseId)],
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    return { hash, receipt };
+  };
+
+  const initiateEmergencyOverride = async (caseId: number, reason: string) => {
+    if (!publicClient) throw new Error("Wallet client unavailable");
+    ensureConfigured();
+    const hash = await writeContractAsync({
+      address: contract,
+      abi: TIMELOCKED_ABI,
+      functionName: "initiateEmergencyOverride",
+      args: [BigInt(caseId), reason],
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    return { hash, receipt };
+  };
+
+  const executeEmergencyOverride = async (caseId: number) => {
+    if (!publicClient) throw new Error("Wallet client unavailable");
+    ensureConfigured();
+    const hash = await writeContractAsync({
+      address: contract,
+      abi: TIMELOCKED_ABI,
+      functionName: "executeEmergencyOverride",
+      args: [BigInt(caseId)],
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    return { hash, receipt };
+  };
+
+  const cancelEmergencyOverride = async (caseId: number) => {
+    if (!publicClient) throw new Error("Wallet client unavailable");
+    ensureConfigured();
+    const hash = await writeContractAsync({
+      address: contract,
+      abi: TIMELOCKED_ABI,
+      functionName: "cancelEmergencyOverride",
+      args: [BigInt(caseId)],
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    return { hash, receipt };
+  };
+
+  return {
+    createLock,
+    createAccessLock,
+    approveUnlock,
+    triggerUnlock,
+    toggleEmergencyPause,
+    revokeLock,
+    initiateEmergencyOverride,
+    executeEmergencyOverride,
+    cancelEmergencyOverride,
+    isPending,
+    error,
+  };
+}
+
+export function useEmergencyPauseActive() {
+  const { data, isLoading, refetch } = useReadContract({
+    address: TIMELOCKED_CONTRACT,
+    abi: TIMELOCKED_ABI,
+    functionName: "emergencyPauseActive",
+    query: { enabled: isContractConfigured(TIMELOCKED_CONTRACT) },
+  });
+
+  return { emergencyActive: Boolean(data), isLoading, refetch };
 }

@@ -11,6 +11,24 @@
     "build": "npm run build --workspace frontend",
     "compile": "npm run compile --workspace contracts",
     "deploy": "npm run deploy --workspace contracts",
-    "test": "npm run test --workspace contracts"
+    "test": "npm run test --workspace contracts",
+    "audit:report": "node scripts/audit-report.mjs"
+  },
+  "overrides": {
+    "hardhat": {
+      "undici": "6.24.0",
+      "ws": "8.20.1"
+    },
+    "mocha": {
+      "serialize-javascript": "7.0.5"
+    },
+    "postcss": "8.5.14",
+    "serialize-javascript": "7.0.5",
+    "solc": {
+      "tmp": "0.2.6"
+    },
+    "tmp": "0.2.6",
+    "undici": "6.24.0",
+    "ws": "8.20.1"
   }
 }

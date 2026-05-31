@@ -1,13 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount } from 'wagmi';
+import { useAccount, useSignMessage } from 'wagmi';
 import Logo from '@/components/Logo';
 import { CASE_CATEGORY } from '@/lib/contracts';
+import {
+  encryptEvidenceFile,
+  encryptReportPayload,
+  generateCaseAccessKey,
+  saveCaseAccessKey,
+} from '@/lib/case-crypto';
 import { uploadFileToIPFS, uploadJsonToIPFS } from '@/lib/pinata';
 import { EMPTY_DIGEST, sha256File, sha256Text, shortAddress } from '@/lib/report-utils';
+import { buildUploadAuthMessage, type UploadAuthorization } from '@/lib/upload-auth';
+import {
+  clearEncryptedDraft,
+  draftEvidenceToFile,
+  fileToDraftEvidence,
+  loadEncryptedDraft,
+  saveEncryptedDraft,
+} from '@/lib/offline-drafts';
 import { useCreateCase } from '@/hooks/useCaseRegistry';
 import { useCofheClient } from '@/hooks/useCofheClient';
 import type { ReportPayload } from '@/types';
@@ -22,8 +36,11 @@ const categoryIcons: Record<number, JSX.Element> = {
   6: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
 };
 
+const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
+
 export default function SubmitReport() {
   const { isConnected, address } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const { createCase, isPending, txHash } = useCreateCase();
   const { encryptUint8, isReady: cofheReady } = useCofheClient();
 
@@ -36,6 +53,71 @@ export default function SubmitReport() {
   const [error, setError] = useState('');
   const [submittedCaseId, setSubmittedCaseId] = useState<number | null>(null);
   const [submittedHash, setSubmittedHash] = useState<`0x${string}` | null>(null);
+  const [submittedAccessKey, setSubmittedAccessKey] = useState('');
+  const [draftStatus, setDraftStatus] = useState('');
+  const [loadedDraftAddress, setLoadedDraftAddress] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!address || loadedDraftAddress === address) {
+      return;
+    }
+
+    let active = true;
+    void loadEncryptedDraft(address)
+      .then((draft) => {
+        if (!active || !draft) {
+          return;
+        }
+
+        setTitle(draft.title);
+        setDescription(draft.description);
+        setSeverity(draft.severity);
+        setCategory(draft.category);
+        if (draft.evidence) {
+          setEvidenceFile(draftEvidenceToFile(draft.evidence));
+        }
+        setDraftStatus(`Encrypted draft restored from ${new Date(draft.updatedAt).toLocaleString()}.`);
+      })
+      .catch(() => setDraftStatus('Saved draft could not be decrypted for this wallet.'))
+      .finally(() => {
+        if (active) {
+          setLoadedDraftAddress(address);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [address, loadedDraftAddress]);
+
+  useEffect(() => {
+    if (!address || submittedCaseId) {
+      return;
+    }
+
+    const hasDraftContent = title.trim() || description.trim() || evidenceFile;
+    const timer = window.setTimeout(() => {
+      if (!hasDraftContent) {
+        clearEncryptedDraft(address);
+        setDraftStatus('');
+        return;
+      }
+
+      void Promise.resolve(evidenceFile && evidenceFile.size <= MAX_EVIDENCE_BYTES ? fileToDraftEvidence(evidenceFile) : null)
+        .then((evidence) => saveEncryptedDraft(address, {
+          title,
+          description,
+          severity,
+          category,
+          evidence,
+          updatedAt: new Date().toISOString(),
+        }))
+        .then(() => setDraftStatus('Encrypted offline draft saved on this device.'))
+        .catch(() => setDraftStatus('Offline draft encryption is unavailable in this browser.'));
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [address, category, description, evidenceFile, severity, submittedCaseId, title]);
 
   const resetForm = () => {
     setTitle('');
@@ -47,6 +129,11 @@ export default function SubmitReport() {
     setError('');
     setSubmittedCaseId(null);
     setSubmittedHash(null);
+    setSubmittedAccessKey('');
+    setDraftStatus('');
+    if (address) {
+      clearEncryptedDraft(address);
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -64,7 +151,7 @@ export default function SubmitReport() {
       return;
     }
 
-    if (evidenceFile && evidenceFile.size > 10 * 1024 * 1024) {
+    if (evidenceFile && evidenceFile.size > MAX_EVIDENCE_BYTES) {
       setError('Evidence files must be 10MB or smaller.');
       return;
     }
@@ -79,17 +166,23 @@ export default function SubmitReport() {
         evidenceName: evidenceFile?.name,
       };
 
-      setStatusLine('Uploading report payload to IPFS...');
-      const reportCid = await uploadJsonToIPFS(reportPayload);
-      const reportDigest = await sha256Text(JSON.stringify(reportPayload));
+      setStatusLine('Creating client-side encrypted case package...');
+      const accessKey = await generateCaseAccessKey();
+      const encryptedReport = await encryptReportPayload(reportPayload, accessKey);
+      const auth = await createUploadAuthorization(address, signMessageAsync);
+
+      setStatusLine('Uploading encrypted report payload to IPFS...');
+      const reportCid = await uploadJsonToIPFS(encryptedReport, auth);
+      const reportDigest = await sha256Text(JSON.stringify(encryptedReport));
 
       let evidenceCid = '';
       let evidenceDigest = EMPTY_DIGEST;
 
       if (evidenceFile) {
-        setStatusLine('Uploading evidence to IPFS...');
-        evidenceCid = await uploadFileToIPFS(evidenceFile, evidenceFile.name);
-        evidenceDigest = await sha256File(evidenceFile);
+        setStatusLine('Encrypting and uploading evidence to IPFS...');
+        const encryptedEvidence = await encryptEvidenceFile(evidenceFile, accessKey);
+        evidenceCid = await uploadFileToIPFS(encryptedEvidence, encryptedEvidence.name, auth);
+        evidenceDigest = await sha256File(encryptedEvidence);
       }
 
       setStatusLine('Encrypting confidential severity with CoFHE...');
@@ -107,6 +200,10 @@ export default function SubmitReport() {
 
       setSubmittedCaseId(result.caseId);
       setSubmittedHash(result.hash);
+      setSubmittedAccessKey(accessKey);
+      saveCaseAccessKey(result.caseId, accessKey);
+      clearEncryptedDraft(address);
+      setDraftStatus('');
       setStatusLine('Report confirmed on-chain.');
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : 'Unable to submit the report.');
@@ -148,7 +245,7 @@ export default function SubmitReport() {
             <span className="gradient-text">Submit</span> a Report
           </h1>
           <p className="text-gray-400">
-            Your report is encrypted and stored securely. Only authorized reviewers can access your submission.
+            Your report and evidence are encrypted in this browser before IPFS upload. Keep the generated case access key private.
           </p>
         </div>
 
@@ -175,6 +272,20 @@ export default function SubmitReport() {
             <p className="text-gray-400 mb-6">
               Reporter: <span className="text-white font-mono">{shortAddress(address)}</span>
             </p>
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left mb-6">
+              <div className="text-xs uppercase tracking-widest text-amber-300 mb-2">Case Access Key</div>
+              <div className="font-mono text-sm text-amber-100 break-all mb-3">{submittedAccessKey}</div>
+              <p className="text-xs text-amber-100/70 mb-3">
+                This key decrypts the report and evidence. It is saved on this device; share it only with approved reviewers through a secure off-chain channel.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(submittedAccessKey)}
+                className="rounded-lg border border-amber-400/30 px-3 py-2 text-xs font-semibold text-amber-100 transition-colors hover:bg-amber-500/10"
+              >
+                Copy Access Key
+              </button>
+            </div>
             <div className="p-4 rounded-2xl bg-black/30 border border-white/10 text-left mb-8">
               <div className="text-xs text-gray-500 mb-1">Transaction Hash</div>
               <div className="font-mono text-sm text-sky-400 break-all">{submittedHash || txHash}</div>
@@ -313,6 +424,24 @@ export default function SubmitReport() {
               </div>
             )}
 
+            {draftStatus && (
+              <div className="flex items-center justify-between gap-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300">
+                <span>{draftStatus}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (address) {
+                      clearEncryptedDraft(address);
+                    }
+                    setDraftStatus('');
+                  }}
+                  className="rounded-lg border border-emerald-500/30 px-3 py-1 text-xs font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/10"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
             {/* Submit Button */}
             <button
               type="submit"
@@ -345,7 +474,7 @@ export default function SubmitReport() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
               <p className="text-sm text-gray-400">
-                Your report is encrypted with FHE before reaching the blockchain. Only authorized reviewers can decrypt and view your submission.
+                Your report body and evidence are encrypted in your browser before IPFS upload. CoFHE protects confidential severity and vote values on-chain.
               </p>
             </div>
           </form>
@@ -353,4 +482,15 @@ export default function SubmitReport() {
       </main>
     </div>
   );
+}
+
+async function createUploadAuthorization(
+  address: `0x${string}`,
+  signMessageAsync: (args: { message: string }) => Promise<`0x${string}`>
+): Promise<UploadAuthorization> {
+  const timestamp = Date.now();
+  const nonce = crypto.randomUUID();
+  const message = buildUploadAuthMessage(address, timestamp, nonce);
+  const signature = await signMessageAsync({ message });
+  return { address, timestamp, nonce, signature };
 }

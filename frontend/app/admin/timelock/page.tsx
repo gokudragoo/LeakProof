@@ -6,7 +6,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import Logo from '@/components/Logo';
 import { useIsAdmin } from '@/hooks/useAccessControl';
-import { useTimeLockedDisclosureActions } from '@/hooks/useTimeLockedDisclosure';
+import { useEmergencyPauseActive, useTimeLockedDisclosureActions } from '@/hooks/useTimeLockedDisclosure';
 import { useAllCaseIds } from '@/hooks/useCaseRegistry';
 import { useDisclosureLock } from '@/hooks/useTimeLockedDisclosure';
 import { CONTRACTS, isContractConfigured } from '@/lib/contracts';
@@ -20,9 +20,22 @@ const DISCLOSURE_TYPES = [
 
 function LockCard({ caseId }: { caseId: number }) {
   const { lock, isLoading } = useDisclosureLock(caseId);
-  const { createLock, approveUnlock, triggerUnlock, isPending } = useTimeLockedDisclosureActions();
+  const {
+    createAccessLock,
+    createLock,
+    approveUnlock,
+    triggerUnlock,
+    revokeLock,
+    initiateEmergencyOverride,
+    executeEmergencyOverride,
+    cancelEmergencyOverride,
+    isPending,
+  } = useTimeLockedDisclosureActions();
   const [duration, setDuration] = useState(7);
   const [approvals, setApprovals] = useState(2);
+  const [grantee, setGrantee] = useState('');
+  const [permissionLevel, setPermissionLevel] = useState(3);
+  const [emergencyReason, setEmergencyReason] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
@@ -30,10 +43,58 @@ function LockCard({ caseId }: { caseId: number }) {
     setError('');
     setNotice('');
     try {
-      await createLock(caseId, duration * 86400, approvals, DISCLOSURE_TYPES[0]);
+      if (grantee.trim()) {
+        await createAccessLock(caseId, duration * 86400, approvals, DISCLOSURE_TYPES[0], grantee.trim(), permissionLevel);
+      } else {
+        await createLock(caseId, duration * 86400, approvals, DISCLOSURE_TYPES[0]);
+      }
       setNotice(`Disclosure lock created for case #${caseId}.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create lock');
+    }
+  };
+
+  const handleRevoke = async () => {
+    setError('');
+    setNotice('');
+    try {
+      await revokeLock(caseId);
+      setNotice('Disclosure lock revoked.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to revoke lock');
+    }
+  };
+
+  const handleInitiateEmergency = async () => {
+    setError('');
+    setNotice('');
+    try {
+      await initiateEmergencyOverride(caseId, emergencyReason || 'Emergency disclosure review');
+      setNotice('Emergency override initiated.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to initiate emergency override');
+    }
+  };
+
+  const handleExecuteEmergency = async () => {
+    setError('');
+    setNotice('');
+    try {
+      await executeEmergencyOverride(caseId);
+      setNotice('Emergency override executed.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to execute emergency override');
+    }
+  };
+
+  const handleCancelEmergency = async () => {
+    setError('');
+    setNotice('');
+    try {
+      await cancelEmergencyOverride(caseId);
+      setNotice('Emergency override cancelled.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to cancel emergency override');
     }
   };
 
@@ -75,8 +136,9 @@ function LockCard({ caseId }: { caseId: number }) {
     );
   }
 
-  const isUnlocked = lock?.emergencyUnlock || !lock?.timeRemaining || lock?.timeRemaining === 0;
-  const canUnlock = lock?.canEmergencyUnlock || isUnlocked;
+  const isUnlocked = Boolean(lock?.emergencyUnlock);
+  const canUnlock = Boolean(lock?.canEmergencyUnlock && !isUnlocked);
+  const isReadyToUnlock = Boolean(lock && lock.timeRemaining === 0 && !isUnlocked && !lock.revoked);
 
   return (
     <div className="glass-card p-6">
@@ -90,10 +152,12 @@ function LockCard({ caseId }: { caseId: number }) {
           ) : null}
         </div>
         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+          !lock ? 'bg-gray-500/10 border border-gray-500/20 text-gray-400' :
           isUnlocked ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' :
+          isReadyToUnlock ? 'bg-blue-500/10 border border-blue-500/20 text-blue-400' :
           'bg-amber-500/10 border border-amber-500/20 text-amber-400'
         }`}>
-          {isUnlocked ? 'Unlocked' : 'Locked'}
+          {!lock ? 'No Lock' : isUnlocked ? 'Unlocked' : isReadyToUnlock ? 'Ready' : 'Locked'}
         </span>
       </div>
 
@@ -113,33 +177,7 @@ function LockCard({ caseId }: { caseId: number }) {
           )}
 
           <div className="flex flex-wrap gap-2 mb-4">
-            {!lock.unlockTimestamp ? (
-              <>
-                <div className="flex items-center gap-2 w-full mb-2">
-                  <label className="text-sm text-gray-400">Duration (days)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={90}
-                    value={duration}
-                    onChange={(e) => setDuration(Number(e.target.value))}
-                    className="input-modern w-20 text-center"
-                  />
-                  <label className="text-sm text-gray-400">Required Approvals</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={5}
-                    value={approvals}
-                    onChange={(e) => setApprovals(Number(e.target.value))}
-                    className="input-modern w-20 text-center"
-                  />
-                </div>
-                <button onClick={handleCreateLock} disabled={isPending} className="btn-primary text-sm">
-                  {isPending ? 'Creating...' : 'Create Lock'}
-                </button>
-              </>
-            ) : !isUnlocked ? (
+            {!isUnlocked ? (
               <>
                 <button onClick={handleApprove} disabled={isPending} className="btn-primary text-sm">
                   {isPending ? 'Approving...' : 'Approve Unlock'}
@@ -149,6 +187,9 @@ function LockCard({ caseId }: { caseId: number }) {
                     Trigger Unlock
                   </button>
                 )}
+                <button onClick={handleRevoke} disabled={isPending || lock.revoked} className="btn-secondary text-sm">
+                  Revoke Lock
+                </button>
               </>
             ) : (
               <span className="text-sm text-emerald-400">Disclosure is unlocked and accessible.</span>
@@ -156,8 +197,73 @@ function LockCard({ caseId }: { caseId: number }) {
           </div>
         </>
       ) : (
-        <div className="text-sm text-gray-400">No lock configured for this case.</div>
+        <>
+          <div className="mb-4 text-sm text-gray-400">No lock configured for this case.</div>
+          <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-2 w-full mb-2">
+              <label className="text-sm text-gray-400">Duration (days)</label>
+              <input
+                type="number"
+                min={1}
+                max={90}
+                value={duration}
+                onChange={(e) => setDuration(Number(e.target.value))}
+                className="input-modern w-20 text-center"
+              />
+              <label className="text-sm text-gray-400">Required Approvals</label>
+              <input
+                type="number"
+                min={0}
+                max={5}
+                value={approvals}
+                onChange={(e) => setApprovals(Number(e.target.value))}
+                className="input-modern w-20 text-center"
+              />
+            </div>
+            <div className="grid w-full gap-2 sm:grid-cols-[1fr_140px]">
+              <input
+                value={grantee}
+                onChange={(e) => setGrantee(e.target.value)}
+                placeholder="0x optional grantee unlocked by this lock"
+                className="input-modern"
+              />
+              <select
+                value={permissionLevel}
+                onChange={(e) => setPermissionLevel(Number(e.target.value))}
+                className="input-modern"
+              >
+                <option value={1}>Outcome</option>
+                <option value={2}>Summary</option>
+                <option value={3}>Full Report</option>
+                <option value={4}>Identity</option>
+              </select>
+            </div>
+            <button onClick={handleCreateLock} disabled={isPending} className="btn-primary text-sm">
+              {isPending ? 'Creating...' : 'Create Lock'}
+            </button>
+          </div>
+        </>
       )}
+      <div className="mt-4 border-t border-white/10 pt-4">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Emergency Override</div>
+        <input
+          value={emergencyReason}
+          onChange={(e) => setEmergencyReason(e.target.value)}
+          placeholder="Reason for emergency override"
+          className="input-modern mb-3"
+        />
+        <div className="flex flex-wrap gap-2">
+          <button onClick={handleInitiateEmergency} disabled={isPending} className="btn-secondary text-sm">
+            Initiate
+          </button>
+          <button onClick={handleExecuteEmergency} disabled={isPending} className="btn-secondary text-sm">
+            Execute
+          </button>
+          <button onClick={handleCancelEmergency} disabled={isPending} className="btn-secondary text-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -167,13 +273,13 @@ export default function TimeLockPage() {
   const { data: adminFlag } = useIsAdmin(address);
   const { caseIds } = useAllCaseIds();
   const { toggleEmergencyPause, isPending } = useTimeLockedDisclosureActions();
-  const [emergencyActive, setEmergencyActive] = useState(false);
+  const { emergencyActive, refetch: refetchEmergencyPause } = useEmergencyPauseActive();
   const timelockReady = isContractConfigured(CONTRACTS.TIMELOCKED);
 
   const handleTogglePause = async () => {
     try {
       await toggleEmergencyPause(!emergencyActive);
-      setEmergencyActive(!emergencyActive);
+      await refetchEmergencyPause();
     } catch { /* ignore */ }
   };
 
